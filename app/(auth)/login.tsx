@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -30,7 +31,9 @@ export default function LoginScreen() {
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
     const shakeAnim = useRef(new Animated.Value(0)).current;
 
-    // Continuous shaking arrow
+
+
+
     useEffect(() => {
         Animated.loop(
             Animated.sequence([
@@ -88,6 +91,11 @@ export default function LoginScreen() {
         return <AnimatedSplashScreen onFinish={() => setIsReady(true)} />;
     }
 
+
+    const handleLogin = () => {
+        router.replace("/(chats)/Chat")
+    }
+
     return (
         <KeyboardAvoidingView
             style={{ flex: 1, backgroundColor: "#C9EBFF" }}
@@ -100,7 +108,7 @@ export default function LoginScreen() {
             >
                 <View style={[styles.card, { width: screenWidth }]}>
                     <LinearGradient
-                        colors={["#009BFF", "#45C3FF"]}
+                        colors={["#009BFF", "#0066CC"]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.header}
@@ -143,10 +151,17 @@ export default function LoginScreen() {
                     <View style={styles.footerRow}>
                         <View style={styles.checkboxRow}></View>
 
-                        <TouchableOpacity style={styles.arrowBtn}>
-                            <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
-                                <Ionicons name="arrow-forward" size={18} color="#fff" />
-                            </Animated.View>
+                        <TouchableOpacity onPress={handleLogin} style={{ borderRadius: 10, overflow: "hidden" }}>
+                            <LinearGradient
+                                colors={["#009BFF", "#0066CC"]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.arrowBtn}
+                            >
+                                <Animated.View style={{ transform: [{ translateX: shakeAnim }] }}>
+                                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                                </Animated.View>
+                            </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 </View>
