@@ -1,9 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Tabs } from "expo-router";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useState } from "react";
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function ChatsLayout() {
+    const [searchText, setSearchText] = useState("");
     return (
         <Tabs
             screenOptions={({ route }) => ({
@@ -29,8 +31,7 @@ export default function ChatsLayout() {
                 },
                 headerStyle: {
                     height: 120,
-                    borderBottomLeftRadius: 20,
-                    borderBottomRightRadius: 20,
+
                     paddingBottom: 10,
                     shadowColor: "#000",
                     shadowOffset: { width: 0, height: -2 },
@@ -45,8 +46,6 @@ export default function ChatsLayout() {
                         end={{ x: 1, y: 1 }}
                         style={{
                             flex: 1,
-                            borderBottomLeftRadius: 20,
-                            borderBottomRightRadius: 20,
                         }}
                     />
                 ),
@@ -58,14 +57,24 @@ export default function ChatsLayout() {
                 headerLeft: () => (
                     <View style={styles.headerLeft}>
                         <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
-                        <Text style={styles.headerTitle}>E-Chat</Text>
+                        <Text style={styles.headerTitle}>RoXX</Text>
                     </View>
                 ),
                 headerRight: () => (
                     <View style={styles.headerRight}>
-                        <TouchableOpacity style={styles.iconButton}>
-                            <Ionicons name="search-outline" size={24} color="#fff" />
-                        </TouchableOpacity>
+                        {/* 🔍 Search Box */}
+                        <View style={styles.searchContainer}>
+                            <Ionicons name="search-outline" size={18} color="#fff" style={styles.searchIcon} />
+                            <TextInput
+                                value={searchText}
+                                onChangeText={setSearchText}
+                                placeholder="Search..."
+                                placeholderTextColor="#E0E0E0"
+                                style={styles.searchInput}
+                            />
+                        </View>
+
+                        {/* ⋮ Ellipsis Icon */}
                         <TouchableOpacity style={styles.iconButton}>
                             <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
                         </TouchableOpacity>
@@ -130,6 +139,25 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginLeft: 16,
     },
+    searchContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "rgba(255,255,255,0.2)",
+        borderRadius: 20,
+        paddingHorizontal: 10,
+        height: 36,
+        
+    },
+    searchIcon: {
+        marginRight: 6,
+    },
+    searchInput: {
+        color: "#fff",
+        width: 120, 
+        fontSize: 14,
+        paddingVertical: 2,
+    },
+
     headerTitle: {
         color: "#fff",
         fontSize: 18,
