@@ -3,7 +3,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useState } from "react";
 import AnimatedSplashScreen from "./splash";
 
-// Keep splash screen visible until we manually hide it
+// Keep splash visible until manually hidden
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -16,8 +16,12 @@ export default function RootLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: false, // hide headers globally
+        headerShown: false,
       }}
-    />
+    >
+      <Stack.Screen name="(auth)/login" />       
+      <Stack.Screen name="(chats)" />      
+      
+    </Stack>
   );
 }
