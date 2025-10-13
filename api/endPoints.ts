@@ -14,6 +14,7 @@ const ENDPOINTS = {
     getPending: "/api/friends/requests/pending",
     accept: "/api/friends/request/accept",
     reject: "/api/friends/request/reject",
+    sent : "/api/friends/requests/sent"
   },
   groups : {
     get:"/api/groups/",
@@ -23,6 +24,9 @@ const ENDPOINTS = {
     addMember : "/api/groups/members/add",
     makeAdmin:"/api/groups/members/promote",
     leaveGroup:"/api/groups/"
+  },
+  chat :{
+    previous_message : "api/messages/messages"
   }
 };
 

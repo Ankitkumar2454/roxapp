@@ -32,6 +32,8 @@ export default function SelectContactScreen() {
     const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [addingFriend, setAddingFriend] = useState<string | null>(null);
+    const [sentRequestIds, setSentRequestIds] = useState<Set<string>>(new Set());
+    const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
     const [formData, setFormData] = useState({
         username: '',
         fullName: '',
@@ -39,14 +41,13 @@ export default function SelectContactScreen() {
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
-
     const [pendingRequests, setPendingRequests] = useState<any>(0)
 
     const handleInitialSetup = async () => {
         const userdata = await Storage.getItem("user");
         console.log("Current user:", userdata);
         setCurrentUser(userdata);
-        await fetchAllUsers();
+        await Promise.all([fetchAllUsers(), fetchSentRequests(), fetchFriendsList()]);
     }
 
     const fetchPendingRequests = async () => {
@@ -57,7 +58,6 @@ export default function SelectContactScreen() {
             console.log("Pending requests:", response.data);
 
             if (response.data.success && response.data.data) {
-                console.log(response.data.data?.length , "nigaaaaaaaaaaaaaaaaaaaaa")
                 setPendingRequests(response.data.data?.length);
             }
         } catch (error: any) {
@@ -65,6 +65,44 @@ export default function SelectContactScreen() {
             showMessage("error", error?.response?.data?.message || "Failed to load pending requests");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchSentRequests = async () => {
+        try {
+            const response = await api.get(ENDPOINTS.friends.sent);
+            console.log("Sent requests:", response.data);
+
+            if (response.data.success && response.data.data) {
+                // Extract receiver IDs from sent requests
+                const sentIds :any = new Set(
+                    response.data.data.map((request: any) => 
+                        request.receiver._id || request.receiver.id
+                    )
+                );
+                setSentRequestIds(sentIds);
+            }
+        } catch (error: any) {
+            console.log("Error fetching sent requests:", error);
+        }
+    };
+
+    const fetchFriendsList = async () => {
+        try {
+            const response = await api.get(ENDPOINTS.friends.getAll);
+            console.log("Friends list:", response.data);
+
+            if (response.data.success && response.data.data) {
+                // Extract friend IDs from friends list
+                const friendIdsSet : any= new Set(
+                    response.data.data.map((friend: any) => 
+                        friend._id || friend.id
+                    )
+                );
+                setFriendIds(friendIdsSet);
+            }
+        } catch (error: any) {
+            console.log("Error fetching friends list:", error);
         }
     };
 
@@ -78,19 +116,27 @@ export default function SelectContactScreen() {
                 const currentUserData = await Storage.getItem("user");
 
                 // Transform backend data to Contact format
-                const transformedContacts: Contact[] = response.data.data.map((user: any) => ({
-                    id: user._id || user.id,
-                    name: user.fullName || user.username,
-                    status: getStatusText(user),
-                    avatar: user.profileImage || undefined,
-                    initial: user.fullName ? user.fullName.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase(),
-                    bgColor: getRandomColor(),
-                    username: user.username,
-                    role: user.role,
-                    isActive: user.isActive,
-                    lastLogin: user.lastLogin,
-                    isYou: currentUserData?._id === user._id || currentUserData?.id === user._id,
-                }));
+                const transformedContacts: Contact[] = response.data.data
+                    .filter((user: any) => {
+                        const userId = user._id || user.id;
+                        // Filter out: current user, and already existing friends
+                        const isCurrentUser = currentUserData?._id === userId || currentUserData?.id === userId;
+                        const isAlreadyFriend = friendIds.has(userId);
+                        return !isCurrentUser && !isAlreadyFriend;
+                    })
+                    .map((user: any) => ({
+                        id: user._id || user.id,
+                        name: user.fullName || user.username,
+                        status: getStatusText(user),
+                        avatar: user.profileImage || undefined,
+                        initial: user.fullName ? user.fullName.charAt(0).toUpperCase() : user.username.charAt(0).toUpperCase(),
+                        bgColor: getRandomColor(),
+                        username: user.username,
+                        role: user.role,
+                        isActive: user.isActive,
+                        lastLogin: user.lastLogin,
+                        isYou: currentUserData?._id === user._id || currentUserData?.id === user._id,
+                    }));
 
                 setContacts(transformedContacts);
                 setFilteredContacts(transformedContacts);
@@ -133,7 +179,7 @@ export default function SelectContactScreen() {
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await fetchAllUsers();
+        await Promise.all([fetchAllUsers(), fetchSentRequests(), fetchFriendsList()]);
         setRefreshing(false);
     }
 
@@ -165,12 +211,41 @@ export default function SelectContactScreen() {
 
             if (response.data.success) {
                 showMessage("success", `Request sent to ${contactName}`);
+                // Add the contact ID to sent requests
+                setSentRequestIds(prev => new Set([...prev, contactId]));
             } else {
                 showMessage("error", response.data.message || "Failed to add friend");
             }
         } catch (error: any) {
             showMessage("error", error?.response?.data?.message || "Failed to add friend");
             console.error("Add friend error:", error);
+        } finally {
+            setAddingFriend(null);
+        }
+    };
+
+    const handleCancelRequest = async (contactId: string, contactName: string) => {
+        try {
+            setAddingFriend(contactId);
+
+            const response = await api.post(ENDPOINTS.friends.reject, {
+                receiverId: contactId
+            });
+
+            if (response.data.success) {
+                showMessage("success", `Request cancelled for ${contactName}`);
+                // Remove the contact ID from sent requests
+                setSentRequestIds(prev => {
+                    const newSet = new Set(prev);
+                    newSet.delete(contactId);
+                    return newSet;
+                });
+            } else {
+                showMessage("error", response.data.message || "Failed to cancel request");
+            }
+        } catch (error: any) {
+            showMessage("error", error?.response?.data?.message || "Failed to cancel request");
+            console.error("Cancel request error:", error);
         } finally {
             setAddingFriend(null);
         }
@@ -232,55 +307,71 @@ export default function SelectContactScreen() {
         }
     };
 
-    const renderContactItem = ({ item }: { item: Contact }) => (
-        <TouchableOpacity
-            style={styles.contactItem}
-            onPress={() => handleContactPress(item)}
-            activeOpacity={0.7}
-        >
-            {item.avatar ? (
-                <Image source={{ uri: item.avatar }} style={styles.avatar} />
-            ) : (
-                <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
-                    <Text style={styles.avatarText}>{item.initial}</Text>
-                </View>
-            )}
-            <View style={styles.contactInfo}>
-                <View style={styles.nameRow}>
-                    <Text style={styles.contactName}>
-                        {item.name} {item.isYou && <Text style={styles.youTag}>(You)</Text>}
-                    </Text>
-                    {/* {item.role === 'admin' && (
-                        <View style={styles.adminBadge}>
-                            <Text style={styles.adminBadgeText}>Admin</Text>
-                        </View>
-                    )} */}
-                </View>
-                {item.status && <Text style={styles.contactStatus} numberOfLines={1}>{item.status}</Text>}
-                {/* {item.username && (
-                    <Text style={styles.contactUsername}>@{item.username}</Text>
-                )} */}
-            </View>
+    const renderContactItem = ({ item }: { item: Contact }) => {
+        const hasRequestSent = sentRequestIds.has(item.id);
+        const alreadyFriends = friendIds.has(item.id);
+        if(alreadyFriends) return <></>;
 
-            {/* Add Friend Button */}
-            {!item.isYou && (
-                <TouchableOpacity
-                    style={styles.addFriendButton}
-                    onPress={(e) => {
-                        e.stopPropagation(); // Prevent triggering contact press
-                        handleAddFriend(item.id, item.name);
-                    }}
-                    disabled={addingFriend === item.id}
-                >
-                    {addingFriend === item.id ? (
-                        <ActivityIndicator size="small" color="#009BFF" />
-                    ) : (
-                        <Ionicons name="person-add-outline" size={20} color="#009BFF" />
-                    )}
-                </TouchableOpacity>
-            )}
-        </TouchableOpacity>
-    );
+        return (
+            <TouchableOpacity
+                style={styles.contactItem}
+                onPress={() => handleContactPress(item)}
+                activeOpacity={0.7}
+            >
+                {item.avatar ? (
+                    <Image source={{ uri: item.avatar }} style={styles.avatar} />
+                ) : (
+                    <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
+                        <Text style={styles.avatarText}>{item.initial}</Text>
+                    </View>
+                )}
+                <View style={styles.contactInfo}>
+                    <View style={styles.nameRow}>
+                        <Text style={styles.contactName}>
+                            {item.name} {item.isYou && <Text style={styles.youTag}>(You)</Text>}
+                        </Text>
+                    </View>
+                    {item.status && <Text style={styles.contactStatus} numberOfLines={1}>{item.status}</Text>}
+                </View>
+
+                {/* Add Friend Button - Only show if request not sent and not current user */}
+                {!item.isYou && !hasRequestSent && (
+                    <TouchableOpacity
+                        style={styles.addFriendButton}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            handleAddFriend(item.id, item.name);
+                        }}
+                        disabled={addingFriend === item.id}
+                    >
+                        {addingFriend === item.id ? (
+                            <ActivityIndicator size="small" color="#009BFF" />
+                        ) : (
+                            <Ionicons name="person-add-outline" size={20} color="#009BFF" />
+                        )}
+                    </TouchableOpacity>
+                )}
+
+                {/* Request Sent Badge - Show when request already sent */}
+                {!item.isYou && hasRequestSent && (
+                    <TouchableOpacity
+                        style={styles.requestSentBadge}
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            handleCancelRequest(item.id, item.name);
+                        }}
+                        disabled={addingFriend === item.id}
+                    >
+                        {addingFriend === item.id ? (
+                            <ActivityIndicator size="small" color="#4CAF50" />
+                        ) : (
+                            <Ionicons name="checkmark" size={20} color="#4CAF50" />
+                        )}
+                    </TouchableOpacity>
+                )}
+            </TouchableOpacity>
+        );
+    };
 
     const ListHeader = () => (
         <>
@@ -379,7 +470,7 @@ export default function SelectContactScreen() {
                             >
                                 <Ionicons name="refresh" size={22} color="#fff" />
                             </TouchableOpacity>
-                            <View >
+                            <View>
                                 <TouchableOpacity onPress={() => {
                                     router.replace("/(contacts)/PendingRequests")
                                 }}>
@@ -393,7 +484,6 @@ export default function SelectContactScreen() {
                     </View>
                 </View>
             </LinearGradient>
-
 
             {loading && contacts.length === 0 ? (
                 <View style={styles.loadingContainer}>
@@ -708,6 +798,16 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         borderWidth: 1,
         borderColor: '#009BFF',
+    },
+    requestSentBadge: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: '#F0F8F0',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#4CAF50',
     },
     separator: {
         height: 1,
