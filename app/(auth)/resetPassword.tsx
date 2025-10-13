@@ -1,88 +1,78 @@
 import api from "@/api/axiosInstance";
 import ENDPOINTS from "@/api/endPoints";
 import GlobalMessage from "@/CustomComponents/message";
-import { Storage } from "@/hooks/useLocalAsyncStorage";
-import { loginPayload, loginResponse, loginResponseData } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import * as SplashScreen from 'expo-splash-screen';
+import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import AnimatedSplashScreen from "../splash";
+import { greetings } from "./login";
 
-
-SplashScreen.preventAutoHideAsync();
 const screenWidth = Dimensions.get("window").width;
-const screenHeight = Dimensions.get("window").height
+const screenHeight = Dimensions.get("window").height;
 
-export const greetings = [
-    "नमस्ते !",
-    "Namaskara !",
-    "Hello !",
-    "Hola !",
-    "Vanakkam !",
-    "Sat Sri Akal !",
-    "Kem Cho !",
-    "Nomoskar !",
-    "Aadab !"
-];
-
-export default function LoginScreen() {
-    const [username, setUsername] = useState("");
-    const [password, setPassword] = useState("");
-    const [isReady, setIsReady] = useState(false);
+export default function MPINResetScreen() {
+    const [newMPIN, setNewMPIN] = useState("");
+    const [confirmMPIN, setConfirmMPIN] = useState("");
     const [loading, setLoading] = useState(false);
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
-    const [showPassword, setShowPassword] = useState(false);
+    const [messageText, setMessageText] = useState("");
+    const [showNewMPIN, setShowNewMPIN] = useState(false);
+    const [showConfirmMPIN, setShowConfirmMPIN] = useState(false);
+    const params = useLocalSearchParams();
+    const userId = params.userId as string;
 
-    const showMessage = (type: 'success' | 'error' | 'info') => {
+    const showMessage = (type: 'success' | 'error' | 'info', message: string) => {
         setMessageType(type);
+        setMessageText(message);
         setMessageVisible(true);
     };
 
-    const handleLogin = async () => {
+    const handleResetMPIN = async () => {
+        if (!newMPIN || !confirmMPIN) {
+            showMessage("info", "Please fill in all fields");
+            return;
+        }
+
+        if (newMPIN.length !== 6) {
+            showMessage("info", "MPIN must be 6 digits");
+            return;
+        }
+
+        if (newMPIN !== confirmMPIN) {
+            showMessage("error", "MPINs do not match");
+            return;
+        }
+
         try {
             setLoading(true);
-            const payload: loginPayload = {
-                username,
-                password
-            }
-            const response = await api.post(ENDPOINTS.auth.login, payload);
-            const data: loginResponse = response.data;
+            const payload = {
+                userId: userId,
+                newMPIN: newMPIN
+            };
+
+            const response = await api.post(ENDPOINTS.auth.resetPassword, payload);
+            const data = response.data;
+            console.log(data)
+
             if (data.success === true) {
-                showMessage("success")
-                if (data?.message !== "MPIN reset required") {
-                    const user_data: loginResponseData = response.data.data;
-                    const { accessToken, refreshToken, user: user } = user_data;
-                    console.log(user_data, "ssssss")
-                    await Storage.setItem("accessToken", accessToken);
-                    await Storage.setItem("refreshToken", refreshToken);
-                    await Storage.setItem("user", user);
-                    setTimeout(() => {
-                        router.replace("/(chats)/Chat")
-                    }, 2500)
-                } else if (data?.message === "MPIN reset required") {
-                    setTimeout(() => {
-                        router.push({
-                            pathname: "/(auth)/resetPassword",
-                            params: { userId: response?.data?.data?.userId }
-                        });
-                    }, 2500)
-                }
+                showMessage("success", "MPIN reset successfully!");
+                setTimeout(() => {
+                    router.replace("/(auth)/login");
+                }, 2500);
             } else {
-                showMessage("info");
+                showMessage("error", data.message || "Failed to reset MPIN");
             }
-        } catch (error) {
-            showMessage("info");
+        } catch (error: any) {
+            showMessage("error", error?.response?.data?.message || "Something went wrong");
             console.log(error);
         } finally {
             setTimeout(() => {
                 setLoading(false);
-            }, 2000)
+            }, 2000);
         }
-    }
+    };
 
     const [index, setIndex] = useState(0);
 
@@ -98,7 +88,7 @@ export default function LoginScreen() {
                 Animated.timing(shakeAnim, { toValue: 6, duration: 200, useNativeDriver: true }),
                 Animated.timing(shakeAnim, { toValue: -6, duration: 200, useNativeDriver: true }),
                 Animated.timing(shakeAnim, { toValue: 0, duration: 200, useNativeDriver: true }),
-                Animated.delay(500) // 500ms pause between shakes
+                Animated.delay(500)
             ])
         ).start();
     }, []);
@@ -142,10 +132,6 @@ export default function LoginScreen() {
         return () => clearInterval(interval);
     }, []);
 
-    if (!isReady) {
-        return <AnimatedSplashScreen onFinish={() => setIsReady(true)} />;
-    }
-
     return (
         <KeyboardAvoidingView
             style={{ flex: 1, backgroundColor: "#C9EBFF" }}
@@ -172,37 +158,49 @@ export default function LoginScreen() {
                             {greetings[index]}
                         </Animated.Text>
 
-                        <Text style={styles.subtitle}>Please enter your{"\n"}credentials</Text>
+                        <Text style={styles.subtitle}>Please reset your{"\n"}MPIN to continue</Text>
                     </LinearGradient>
 
-                    <Text style={styles.infoText}>Please enter your username and password!</Text>
+                    <Text style={styles.infoText}>Enter a new 6-digit MPIN for your account security</Text>
 
                     <View style={styles.inputRow}>
                         <TextInput
-                            style={styles.input}
-                            placeholder="Enter your username here"
+                            style={[styles.input, { flex: 1 }]}
+                            placeholder="Enter new 6-digit MPIN"
                             placeholderTextColor="#ccc"
-                            value={username}
-                            onChangeText={setUsername}
+                            value={newMPIN}
+                            onChangeText={setNewMPIN}
+                            maxLength={6}
+                            secureTextEntry={!showNewMPIN}
                         />
+                        <TouchableOpacity
+                            onPress={() => setShowNewMPIN(!showNewMPIN)}
+                            style={styles.iconContainer}
+                        >
+                            <Ionicons
+                                name={showNewMPIN ? "eye-off-outline" : "eye-outline"}
+                                size={22}
+                                color="#009BFF"
+                            />
+                        </TouchableOpacity>
                     </View>
 
                     <View style={styles.inputRow}>
                         <TextInput
                             style={[styles.input, { flex: 1 }]}
-                            placeholder="Enter your password here"
+                            placeholder="Confirm new MPIN"
                             placeholderTextColor="#ccc"
-                            value={password}
-                            onChangeText={setPassword}
-                            secureTextEntry={!showPassword} // 👈 toggle visibility
+                            value={confirmMPIN}
+                            onChangeText={setConfirmMPIN}
+                            maxLength={6}
+                            secureTextEntry={!showConfirmMPIN}
                         />
-
                         <TouchableOpacity
-                            onPress={() => setShowPassword(!showPassword)}
+                            onPress={() => setShowConfirmMPIN(!showConfirmMPIN)}
                             style={styles.iconContainer}
                         >
                             <Ionicons
-                                name={showPassword ? "eye-off-outline" : "eye-outline"}
+                                name={showConfirmMPIN ? "eye-off-outline" : "eye-outline"}
                                 size={22}
                                 color="#009BFF"
                             />
@@ -210,9 +208,12 @@ export default function LoginScreen() {
                     </View>
 
                     <View style={styles.footerRow}>
-                        <View style={styles.checkboxRow}></View>
+                        <View style={styles.checkboxRow}>
+                            <Ionicons name="shield-checkmark" size={20} color="#009BFF" />
+                            <Text style={styles.securityText}>Secure & Encrypted</Text>
+                        </View>
 
-                        <TouchableOpacity onPress={handleLogin} style={{ borderRadius: 10, overflow: "hidden" }}>
+                        <TouchableOpacity onPress={handleResetMPIN} style={{ borderRadius: 10, overflow: "hidden" }}>
                             <LinearGradient
                                 colors={["#009BFF", "#0066CC"]}
                                 start={{ x: 0, y: 0 }}
@@ -220,27 +221,21 @@ export default function LoginScreen() {
                                 style={styles.arrowBtn}
                             >
                                 <Animated.View style={!loading && { transform: [{ translateX: shakeAnim }] }}>
-                                    {
-                                        loading ?
-                                            <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 2 }} /> :
-                                            <Ionicons name="arrow-forward" size={18} color="#fff" />
-                                    }
+                                    {loading ? (
+                                        <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 2 }} />
+                                    ) : (
+                                        <Ionicons name="checkmark" size={18} color="#fff" />
+                                    )}
                                 </Animated.View>
                             </LinearGradient>
                         </TouchableOpacity>
                     </View>
                 </View>
             </ScrollView>
-            {/* <GlobalLoader visible={loading} /> */}
+
             <GlobalMessage
                 type={messageType}
-                message={
-                    messageType === 'success'
-                        ? 'Login SuccessFull'
-                        : messageType === 'error'
-                            ? 'Something went wrong , please try again in some time '
-                            : 'Invalid credentials !!!'
-                }
+                message={messageText}
                 visible={messageVisible}
                 onClose={() => setMessageVisible(false)}
             />
@@ -249,8 +244,13 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "white", justifyContent: "center", alignItems: "center" },
-    card: { backgroundColor: "#fff", borderRadius: 20, overflow: "hidden", paddingBottom: 40, height: screenHeight },
+    card: {
+        backgroundColor: "#fff",
+        borderRadius: 20,
+        overflow: "hidden",
+        paddingBottom: 40,
+        height: screenHeight
+    },
     header: {
         height: screenHeight * 0.4,
         borderBottomLeftRadius: 0,
@@ -266,13 +266,66 @@ const styles = StyleSheet.create({
         shadowRadius: 20,
         elevation: 20,
     },
-    loginText: { fontSize: 38, color: "#fff", fontWeight: "300", position: "absolute", top: 100, left: 25 },
-    subtitle: { fontSize: 30, color: "#fff", fontWeight: "200" },
-    infoText: { color: "#3e3939ff", textAlign: "left", marginTop: 45, marginHorizontal: 25, fontSize: 14 },
-    inputRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1.2, borderColor: "#aaa", marginHorizontal: 25, marginTop: 25, paddingBottom: 6 },
-    input: { flex: 1, color: "#000", fontSize: 15 },
-    iconContainer: { paddingHorizontal: 6 },
-    footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 25, marginTop: 25 },
-    checkboxRow: { flexDirection: "row", alignItems: "center" },
-    arrowBtn: { backgroundColor: "#52b5f7ff", width: 100, height: 50, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+    loginText: {
+        fontSize: 38,
+        color: "#fff",
+        fontWeight: "300",
+        position: "absolute",
+        top: 100,
+        left: 25
+    },
+    subtitle: {
+        fontSize: 30,
+        color: "#fff",
+        fontWeight: "200"
+    },
+    infoText: {
+        color: "#3e3939ff",
+        textAlign: "left",
+        marginTop: 45,
+        marginHorizontal: 25,
+        fontSize: 14
+    },
+    inputRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderBottomWidth: 1.2,
+        borderColor: "#aaa",
+        marginHorizontal: 25,
+        marginTop: 25,
+        paddingBottom: 6
+    },
+    input: {
+        flex: 1,
+        color: "#000",
+        fontSize: 15
+    },
+    iconContainer: {
+        paddingHorizontal: 6
+    },
+    footerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginHorizontal: 25,
+        marginTop: 25
+    },
+    checkboxRow: {
+        flexDirection: "row",
+        alignItems: "center"
+    },
+    securityText: {
+        marginLeft: 8,
+        color: "#009BFF",
+        fontSize: 13,
+        fontWeight: "500"
+    },
+    arrowBtn: {
+        backgroundColor: "#52b5f7ff",
+        width: 100,
+        height: 50,
+        borderRadius: 10,
+        justifyContent: "center",
+        alignItems: "center"
+    },
 });

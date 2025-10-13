@@ -1,94 +1,200 @@
+import api from '@/api/axiosInstance';
+import ENDPOINTS from '@/api/endPoints';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import React from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
-const groups = [
-  {
-    id: '1',
-    name: 'Project Alpha Team',
-    message: 'Sarah: Let\'s schedule the meeting for tomorrow 📅',
-    time: '09:15',
-    avatar: 'https://i.pravatar.cc/150?img=60',
-    memberCount: 8,
-    unread: 3,
-  },
-  {
-    id: '2',
-    name: 'Family Group',
-    message: 'Mom: Don\'t forget about dinner tonight! 🍽️',
-    time: '08:45',
-    avatar: 'https://i.pravatar.cc/150?img=61',
-    memberCount: 6,
-    unread: 0,
-  },
-  {
-    id: '3',
-    name: 'Fitness Buddies',
-    message: 'Mike: Great workout today everyone! 💪',
-    time: '07:30 06/05',
-    avatar: 'https://i.pravatar.cc/150?img=62',
-    memberCount: 12,
-    unread: 5,
-  },
-  {
-    id: '4',
-    name: 'College Friends',
-    message: 'Emma: Who\'s coming to the reunion? 🎉',
-    time: '23:20 06/04',
-    avatar: 'https://i.pravatar.cc/150?img=63',
-    memberCount: 15,
-    unread: 0,
-  },
-  {
-    id: '5',
-    name: 'Book Club',
-    message: 'James: Finished chapter 5, thoughts? 📚',
-    time: '19:45 06/04',
-    avatar: 'https://i.pravatar.cc/150?img=64',
-    memberCount: 10,
-    unread: 2,
-  },
-];
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function GroupsScreen() {
+  const [groups, setGroups] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-   const handleGroupChatNavigation =  () => {
-    router.replace("/(GroupChats)/ChatInGroup")
-   }   
+  const handleGroupChatNavigation = (groupId: any) => {
+    router.replace({
+      pathname: "/(GroupChats)/ChatInGroup",
+      params: { groupId },
+    });
+  };
 
-  const renderGroupItem = ({ item } : any) => (
-    <TouchableOpacity style={[styles.groupItem, item.unread > 0 && styles.unreadGroup]} onPress={handleGroupChatNavigation}>
-      <View style={styles.avatarContainer}>
-        <Image source={{ uri: item.avatar }} style={styles.avatar} />
-        <View style={styles.memberBadge}>
-          <Text style={styles.memberBadgeText}>{item.memberCount}</Text>
+  const handleCreateGroup = () => {
+    router.push("/(GroupChats)/CreateGroupChats");
+  };
+
+  const getAllGroupChats = async () => {
+    try {
+      setError(null);
+      const res = await api.get(ENDPOINTS.groups.get);
+      const data = res.data;
+
+      if (data.success && data.data) {
+        const formattedGroups = formatGroupsData(data.data);
+        setGroups(formattedGroups);
+      } else {
+        setGroups([]);
+      }
+    } catch (error) {
+      console.log("Error fetching groups:", error);
+      // setError("Failed to load groups");
+      setGroups([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const formatGroupsData = (apiGroups: any) => {
+    return apiGroups.map((group: any) => ({
+      id: group._id,
+      name: group.name,
+      description: group.description,
+      avatar: group.groupImage,
+      memberCount: group.members?.length || 0,
+      members: group.members || [],
+      createdBy: group.createdBy,
+      admins: group.admins || [],
+      isActive: group.isActive,
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt,
+    }));
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    getAllGroupChats();
+  };
+
+  useEffect(() => {
+    getAllGroupChats();
+  }, []);
+
+  const renderGroupItem = ({ item }: any) => (
+    <TouchableOpacity
+      style={styles.groupItem}
+      onPress={() => handleGroupChatNavigation(item.id)}
+      activeOpacity={0.7}
+    >
+      <View style={styles.groupImageContainer}>
+        <Image source={{ uri: item.avatar }} style={styles.groupImage} />
+        <View style={styles.memberCountBadge}>
+          <Ionicons name="people" size={12} color="#fff" />
+          <Text style={styles.memberCountText}>{item.memberCount}</Text>
         </View>
       </View>
+
       <View style={styles.groupContent}>
-        <View style={styles.groupHeader}>
-          <Text style={styles.name}>{item.name}</Text>
-          <Text style={styles.time}>{item.time}</Text>
+        <Text style={styles.groupName} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.groupDescription} numberOfLines={1}>
+          {item.description || 'No description'}
+        </Text>
+
+        {/* Members avatars */}
+        <View style={styles.membersAvatarContainer}>
+          {item.members.slice(0, 3).map((member: any, index: any) => (
+            <Image
+              key={member._id}
+              source={{ uri: member.profileImage }}
+              style={[
+                styles.memberSmallAvatar,
+                { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
+              ]}
+            />
+          ))}
+          {item.memberCount > 3 && (
+            <View style={[styles.memberSmallAvatar, styles.moreMembers]}>
+              <Text style={styles.moreMembersText}>+{item.memberCount - 3}</Text>
+            </View>
+          )}
         </View>
-        <Text style={styles.message} numberOfLines={1}>
-          {item.message}
+
+        <Text style={styles.createdByText}>
+          Created by {item.createdBy.fullName}
         </Text>
       </View>
-      {item.unread > 0 && (
-        <View style={styles.unreadBadge}>
-          <Text style={styles.unreadBadgeText}>{item.unread}</Text>
-        </View>
-      )}
+
+      <View style={styles.actionContainer}>
+        <TouchableOpacity style={styles.moreButton}>
+          <Ionicons name="ellipsis-vertical" size={20} color="#666" />
+        </TouchableOpacity>
+      </View>
     </TouchableOpacity>
   );
+
+  const EmptyState = () => (
+    <View style={styles.emptyContainer}>
+      <View style={styles.emptyIconContainer}>
+        <Ionicons name="people-outline" size={64} color="#CCC" />
+      </View>
+      <Text style={styles.emptyTitle}>No Groups Yet</Text>
+      <Text style={styles.emptyMessage}>
+        Create or join a group to start chatting with your friends!
+      </Text>
+      <TouchableOpacity style={styles.createGroupButton} onPress={handleCreateGroup}>
+        <Ionicons name="add-circle" size={20} color="#fff" />
+        <Text style={styles.createGroupButtonText}>Create a Group</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const ErrorState = () => (
+    <View style={styles.errorContainer}>
+      <View style={styles.errorIconContainer}>
+        <Ionicons name="alert-circle-outline" size={64} color="#FF5722" />
+      </View>
+      <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
+      <Text style={styles.errorMessage}>{error}</Text>
+      <TouchableOpacity style={styles.retryButton} onPress={getAllGroupChats}>
+        <Ionicons name="reload" size={20} color="#fff" />
+        <Text style={styles.retryButtonText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading groups...</Text>
+      </View>
+    );
+  }
+
+  if (error && groups.length === 0) {
+    return <ErrorState />;
+  }
 
   return (
     <View style={styles.container}>
       <FlatList
         data={groups}
         renderItem={renderGroupItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: any) => item.id}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#007AFF"
+          />
+        }
+        ListEmptyComponent={EmptyState}
+        ListFooterComponent={() => <View style={{ height: 20 }} />}
       />
+
+      {/* <TouchableOpacity
+        style={styles.fab}
+        onPress={handleCreateGroup}
+      >
+        <LinearGradient
+          colors={["#009BFF", "#0066CC"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.fabGradient}
+        >
+          <Ionicons name="add" size={32} color="#fff" />
+        </LinearGradient>
+      </TouchableOpacity> */}
     </View>
   );
 }
@@ -98,42 +204,133 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#fff',
+  },
+  emptyIconContainer: {
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyMessage: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  createGroupButton: {
+    flexDirection: 'row',
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    gap: 8,
+  },
+  createGroupButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: '#fff',
+  },
+  errorIconContainer: {
+    marginBottom: 20,
+  },
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FF5722',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    gap: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   groupItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    paddingHorizontal: 16,
+    padding: 16,
     backgroundColor: '#fff',
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E8E8E8',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  unreadGroup: {
-    backgroundColor: '#F0F8FF',
-  },
-  avatarContainer: {
+  groupImageContainer: {
     position: 'relative',
-    marginRight: 12,
+    marginRight: 14,
   },
-  avatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 12,
+  groupImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: '#E0E0E0',
   },
-  memberBadge: {
+  memberCountBadge: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
-    backgroundColor: '#4CAF50',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#007AFF',
     borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    gap: 2,
     borderWidth: 2,
     borderColor: '#fff',
   },
-  memberBadgeText: {
+  memberCountText: {
     color: '#fff',
     fontSize: 10,
     fontWeight: '700',
@@ -141,45 +338,71 @@ const styles = StyleSheet.create({
   groupContent: {
     flex: 1,
   },
-  groupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  groupName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
     marginBottom: 4,
   },
-  name: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    flex: 1,
-  },
-  time: {
+  groupDescription: {
     fontSize: 12,
     color: '#666',
-    marginLeft: 8,
+    marginBottom: 8,
   },
-  message: {
-    fontSize: 14,
-    color: '#666',
+  membersAvatarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
   },
-  unreadBadge: {
-    backgroundColor: '#FF5722',
-    borderRadius: 12,
-    minWidth: 24,
+  memberSmallAvatar: {
+    width: 24,
     height: 24,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#fff',
+  },
+  moreMembers: {
+    backgroundColor: '#F0F0F0',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    marginLeft: 8,
   },
-  unreadBadgeText: {
-    color: '#fff',
-    fontSize: 12,
+  moreMembersText: {
+    fontSize: 9,
     fontWeight: '700',
+    color: '#666',
+  },
+  createdByText: {
+    fontSize: 11,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  actionContainer: {
+    marginLeft: 10,
+  },
+  moreButton: {
+    padding: 8,
   },
   separator: {
     height: 1,
-    backgroundColor: '#E0E0E0',
-    marginLeft: 82,
+    backgroundColor: '#F0F0F0',
+    marginHorizontal: 12,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    borderRadius: 28,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  fabGradient: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

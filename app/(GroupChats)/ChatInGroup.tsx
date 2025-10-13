@@ -1,7 +1,13 @@
+import api from '@/api/axiosInstance';
+import ENDPOINTS from '@/api/endPoints';
+import GlobalMessage from '@/CustomComponents/message';
+import { GroupData, Message } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Image,
     KeyboardAvoidingView,
     Platform,
@@ -14,75 +20,67 @@ import {
     View,
 } from 'react-native';
 
-interface Message {
-    id: string;
-    senderId: string;
-    senderName: string;
-    avatar?: string;
-    text: string;
-    time: string;
-    isSent: boolean;
-    isDelivered?: boolean;
-}
 
-const CURRENT_USER_ID = 'me';
 
-export default function ChatMessageScreen() {
+const CURRENT_USER_ID = 'me'; // This should come from your auth state
+
+export default function GroupChatScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
+    const groupId = params.groupId as string;
+
     const [message, setMessage] = useState('');
-    const [messages, setMessages] = useState<Message[]>([
-        {
-            id: '1',
-            senderId: 'u1',
-            senderName: 'David Wayne',
-            avatar: 'https://i.pravatar.cc/100?img=12',
-            text: "Hey everyone! Delivery is on the way 😊",
-            time: '10:15',
-            isSent: false,
-        },
-        {
-            id: '2',
-            senderId: CURRENT_USER_ID,
-            senderName: 'You',
-            text: 'Nice! Excited for the food 😋',
-            time: '10:16',
-            isSent: true,
-            isDelivered: true,
-        },
-        {
-            id: '3',
-            senderId: 'u2',
-            senderName: 'Sarah Chen',
-            avatar: 'https://i.pravatar.cc/100?img=20',
-            text: 'Make sure you bring extra sauces please!',
-            time: '10:17',
-            isSent: false,
-        },
-        {
-            id: '4',
-            senderId: 'u3',
-            senderName: 'Speedy Chow',
-            avatar: 'https://i.pravatar.cc/100?img=30',
-            text: "No worries, I'll grab some more! 🚴",
-            time: '10:18',
-            isSent: false,
-        },
-        {
-            id: '5',
-            senderId: CURRENT_USER_ID,
-            senderName: 'You',
-            text: 'Awesome, thanks team!',
-            time: '10:19',
-            isSent: true,
-            isDelivered: true,
-        },
-    ]);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [groupData, setGroupData] = useState<GroupData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [messageVisible, setMessageVisible] = useState(false);
+    const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
+    const [messageText, setMessageText] = useState('');
 
     const scrollViewRef = useRef<ScrollView>(null);
 
     useEffect(() => {
+        if (groupId) {
+            fetchGroupData();
+        }
+    }, [groupId]);
+
+    useEffect(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
+
+    const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
+        setMessageType(type);
+        setMessageText(text);
+        setMessageVisible(true);
+    };
+
+    const fetchGroupData = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get(`${ENDPOINTS.groups.get}${groupId}`);
+
+            if (response.data.success && response.data.data) {
+                setGroupData(response.data.data);
+                // TODO: Fetch messages for this group
+                // fetchMessages(groupId);
+            } else {
+                showMessage('error', 'Failed to load group data');
+            }
+        } catch (error: any) {
+            console.log('Error fetching group:', error);
+            showMessage('error', error?.response?.data?.message || 'Failed to load group');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const getAvatarUrl = (profileImage?: string, fullName?: string) => {
+        if (profileImage) {
+            return profileImage;
+        }
+        return `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=009BFF&color=fff&size=128`;
+    };
 
     const handleSend = () => {
         if (message.trim()) {
@@ -97,43 +95,143 @@ export default function ChatMessageScreen() {
                     hour12: false,
                 }),
                 isSent: true,
-                isDelivered: true,
+                isDelivered: false,
             };
+
             setMessages([...messages, newMessage]);
             setMessage('');
+
+            // TODO: Send message to backend
+            // sendMessageToBackend(groupId, message.trim());
         }
     };
+
+    const isUserAdmin = () => {
+        if (!groupData) return false;
+        return groupData.admins.some(admin => admin._id === CURRENT_USER_ID);
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color="#009BFF" />
+                    <Text style={styles.loadingText}>Loading group...</Text>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    if (!groupData) {
+        return (
+            <SafeAreaView style={styles.container}>
+                <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
+                    <Text style={styles.errorText}>Group not found</Text>
+                    <TouchableOpacity
+                        style={styles.backToChatsButton}
+                        onPress={() => router.back()}
+                    >
+                        <Text style={styles.backToChatsText}>Go Back</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
 
     return (
         <SafeAreaView style={styles.container}>
             {/* Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.replace("/(chats)/Chat")} style={styles.backButton}>
-                    <Ionicons name="arrow-back" size={24} color="#000" />
+            <LinearGradient
+                colors={['#009BFF', '#0066CC']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.header}
+            >
+                <TouchableOpacity
+                    onPress={() => router.replace("/(chats)/Groups")}
+                    style={styles.backButton}
+                >
+                    <Ionicons name="arrow-back" size={24} color="#fff" />
                 </TouchableOpacity>
 
-                <View style={styles.headerCenter}>
+                <TouchableOpacity
+                    style={styles.headerCenter}
+                    onPress={() => {
+                        // TODO: Navigate to group info screen
+                        router.replace({
+                            pathname: "/(GroupChats)/GroupDescription",
+                            params: {
+                                groupId
+                            }
+                        })
+                        // router.push({ pathname: '/(groups)/GroupInfo', params: { groupId } });
+                    }}
+                >
                     <Image
-                        source={{ uri: 'https://i.pravatar.cc/100?img=11' }}
+                        source={{
+                            uri: groupData.groupImage ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(groupData.name)}&background=009BFF&color=fff&size=128`
+                        }}
                         style={styles.avatar}
                     />
                     <View style={styles.headerInfo}>
-                        <Text style={styles.headerName}>Group Chat</Text>
-                        <Text style={styles.headerPhone}>3 members</Text>
+                        <Text style={styles.headerName} numberOfLines={1}>
+                            {groupData.name}
+                        </Text>
+                        <Text style={styles.headerPhone}>
+                            {groupData.members.length} {groupData.members.length === 1 ? 'member' : 'members'}
+                        </Text>
                     </View>
-                </View>
+                </TouchableOpacity>
 
                 <View style={styles.headerRight}>
                     <TouchableOpacity style={styles.headerIcon}>
-                        <Ionicons name="call-outline" size={24} color="#000" />
+                        <Ionicons name="call-outline" size={24} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIcon}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="#000" />
+                        <Ionicons name="ellipsis-vertical" size={20} color="#fff" />
                     </TouchableOpacity>
                 </View>
+            </LinearGradient>
+
+            {/* Group Info Banner (if admin) */}
+            {isUserAdmin() && (
+                <View style={styles.adminBanner}>
+                    <Ionicons name="shield-checkmark" size={16} color="#FF9800" />
+                    <Text style={styles.adminBannerText}>You are an admin</Text>
+                </View>
+            )}
+
+            {/* Members Preview */}
+            <View style={styles.membersPreview}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.membersScrollContent}
+                >
+                    {groupData.members.slice(0, 10).map((member, index) => (
+                        <View key={member._id} style={styles.memberPreviewItem}>
+                            <Image
+                                source={{ uri: getAvatarUrl(member.profileImage, member.fullName) }}
+                                style={styles.memberPreviewAvatar}
+                            />
+                            {groupData.admins.some(admin => admin._id === member._id) && (
+                                <View style={styles.adminBadgeSmall}>
+                                    <Ionicons name="star" size={10} color="#fff" />
+                                </View>
+                            )}
+                        </View>
+                    ))}
+                    {groupData.members.length > 10 && (
+                        <View style={styles.moreMembers}>
+                            <Text style={styles.moreMembersText}>+{groupData.members.length - 10}</Text>
+                        </View>
+                    )}
+                </ScrollView>
             </View>
 
-            {/* 👇 KeyboardAvoidingView wraps ScrollView + Input */}
+            {/* KeyboardAvoidingView wraps ScrollView + Input */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -147,60 +245,70 @@ export default function ChatMessageScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {messages.map((msg) => {
-                        const isMe = msg.senderId === CURRENT_USER_ID;
-                        return (
-                            <View key={msg.id} style={{ marginBottom: 12 }}>
-                                {!isMe && (
-                                    <View style={styles.senderRow}>
-                                        {msg.avatar && (
-                                            <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
-                                        )}
-                                        <Text style={styles.senderName}>{msg.senderName}</Text>
-                                    </View>
-                                )}
-                                <View
-                                    style={[
-                                        styles.messageBubble,
-                                        isMe ? styles.sentBubble : styles.receivedBubble,
-                                    ]}
-                                >
-                                    <Text
+                    {messages.length === 0 ? (
+                        <View style={styles.emptyMessagesContainer}>
+                            <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
+                            <Text style={styles.emptyMessagesText}>No messages yet</Text>
+                            <Text style={styles.emptyMessagesSubtext}>
+                                Be the first to send a message!
+                            </Text>
+                        </View>
+                    ) : (
+                        messages.map((msg) => {
+                            const isMe = msg.senderId === CURRENT_USER_ID;
+                            return (
+                                <View key={msg.id} style={{ marginBottom: 12 }}>
+                                    {!isMe && (
+                                        <View style={styles.senderRow}>
+                                            {msg.avatar && (
+                                                <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
+                                            )}
+                                            <Text style={styles.senderName}>{msg.senderName}</Text>
+                                        </View>
+                                    )}
+                                    <View
                                         style={[
-                                            styles.messageText,
-                                            isMe ? styles.sentText : styles.receivedText,
+                                            styles.messageBubble,
+                                            isMe ? styles.sentBubble : styles.receivedBubble,
                                         ]}
                                     >
-                                        {msg.text}
-                                    </Text>
-                                    <View style={styles.messageFooter}>
                                         <Text
                                             style={[
-                                                styles.messageTime,
-                                                isMe ? styles.sentTime : styles.receivedTime,
+                                                styles.messageText,
+                                                isMe ? styles.sentText : styles.receivedText,
                                             ]}
                                         >
-                                            {msg.time}
+                                            {msg.text}
                                         </Text>
-                                        {isMe && msg.isDelivered && (
-                                            <Ionicons
-                                                name="checkmark-done"
-                                                size={16}
-                                                color="#fff"
-                                                style={styles.checkmark}
-                                            />
-                                        )}
+                                        <View style={styles.messageFooter}>
+                                            <Text
+                                                style={[
+                                                    styles.messageTime,
+                                                    isMe ? styles.sentTime : styles.receivedTime,
+                                                ]}
+                                            >
+                                                {msg.time}
+                                            </Text>
+                                            {isMe && (
+                                                <Ionicons
+                                                    name={msg.isDelivered ? "checkmark-done" : "checkmark"}
+                                                    size={16}
+                                                    color={msg.isDelivered ? "#4CAF50" : "rgba(255, 255, 255, 0.6)"}
+                                                    style={styles.checkmark}
+                                                />
+                                            )}
+                                        </View>
                                     </View>
                                 </View>
-                            </View>
-                        );
-                    })}
+                            );
+                        })
+                    )}
                 </ScrollView>
 
                 {/* Input */}
                 <View style={styles.inputContainer}>
                     <TouchableOpacity style={styles.attachButton}>
-                        <Ionicons name="add" size={28} color="#00A8E8" />
+                        <Ionicons name="add-circle" size={32} color="#009BFF" />
                     </TouchableOpacity>
 
                     <View style={styles.inputWrapper}>
@@ -211,22 +319,40 @@ export default function ChatMessageScreen() {
                             value={message}
                             onChangeText={setMessage}
                             multiline
+                            maxLength={1000}
                         />
                     </View>
 
                     <TouchableOpacity
-                        style={styles.sendButton}
+                        style={[
+                            styles.sendButton,
+                            !message.trim() && styles.sendButtonDisabled
+                        ]}
                         onPress={handleSend}
                         disabled={!message.trim()}
                     >
-                        <Ionicons
-                            name="send"
-                            size={24}
-                            color={message.trim() ? '#fff' : '#ccc'}
-                        />
+                        <LinearGradient
+                            colors={message.trim() ? ['#009BFF', '#0066CC'] : ['#E0E0E0', '#BDBDBD']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.sendButtonGradient}
+                        >
+                            <Ionicons
+                                name="send"
+                                size={20}
+                                color="#fff"
+                            />
+                        </LinearGradient>
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
+
+            <GlobalMessage
+                type={messageType}
+                message={messageText}
+                visible={messageVisible}
+                onClose={() => setMessageVisible(false)}
+            />
         </SafeAreaView>
     );
 }
@@ -236,17 +362,50 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#fff',
     },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 40,
+    },
+    errorText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 16,
+    },
+    backToChatsButton: {
+        marginTop: 20,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        backgroundColor: '#009BFF',
+        borderRadius: 24,
+    },
+    backToChatsText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 16,
-        paddingVertical: 35,
-        backgroundColor: '#fff',
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
+        paddingVertical: 12,
+        paddingTop: 50,
     },
     backButton: {
         marginRight: 12,
+        padding: 4,
     },
     headerCenter: {
         flex: 1,
@@ -254,23 +413,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
         marginRight: 12,
+        borderWidth: 2,
+        borderColor: '#fff',
     },
     headerInfo: {
         flex: 1,
     },
     headerName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
+        fontSize: 17,
+        fontWeight: '700',
+        color: '#fff',
     },
     headerPhone: {
-        fontSize: 12,
-        color: '#666',
+        fontSize: 13,
+        color: '#fff',
         marginTop: 2,
+        opacity: 0.9,
     },
     headerRight: {
         flexDirection: 'row',
@@ -278,14 +440,92 @@ const styles = StyleSheet.create({
     },
     headerIcon: {
         marginLeft: 16,
+        padding: 4,
+    },
+    adminBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#FFF3E0',
+        paddingVertical: 6,
+        gap: 6,
+    },
+    adminBannerText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#FF9800',
+    },
+    membersPreview: {
+        backgroundColor: '#F8F8F8',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
+    },
+    membersScrollContent: {
+        paddingHorizontal: 16,
+        gap: 8,
+    },
+    memberPreviewItem: {
+        position: 'relative',
+    },
+    memberPreviewAvatar: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    adminBadgeSmall: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        backgroundColor: '#FF9800',
+        borderRadius: 8,
+        width: 16,
+        height: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    moreMembers: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#E0E0E0',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    moreMembersText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#666',
     },
     messagesContainer: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#F0F4F8',
     },
     messagesContent: {
         padding: 16,
         paddingBottom: 20,
+        flexGrow: 1,
+    },
+    emptyMessagesContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    emptyMessagesText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 16,
+    },
+    emptyMessagesSubtext: {
+        fontSize: 14,
+        color: '#999',
+        marginTop: 8,
     },
     senderRow: {
         flexDirection: 'row',
@@ -295,7 +535,8 @@ const styles = StyleSheet.create({
     },
     senderName: {
         fontSize: 13,
-        color: '#555',
+        fontWeight: '600',
+        color: '#009BFF',
         marginLeft: 6,
     },
     messageAvatar: {
@@ -311,7 +552,7 @@ const styles = StyleSheet.create({
     },
     sentBubble: {
         alignSelf: 'flex-end',
-        backgroundColor: '#007AFF',
+        backgroundColor: '#009BFF',
         borderBottomRightRadius: 4,
     },
     receivedBubble: {
@@ -320,9 +561,9 @@ const styles = StyleSheet.create({
         borderBottomLeftRadius: 4,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.05,
-        shadowRadius: 2,
-        elevation: 1,
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+        elevation: 2,
     },
     messageText: {
         fontSize: 15,
@@ -359,19 +600,21 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         backgroundColor: '#fff',
         borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
+        borderTopColor: '#E0E0E0',
     },
     attachButton: {
         marginRight: 8,
-        marginBottom: 8,
+        marginBottom: 6,
     },
     inputWrapper: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#F5F5F5',
         borderRadius: 24,
         paddingHorizontal: 16,
         paddingVertical: 10,
         maxHeight: 100,
+        borderWidth: 1,
+        borderColor: '#E0E0E0',
     },
     input: {
         fontSize: 15,
@@ -381,9 +624,16 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: '#00A8E8',
+        marginLeft: 8,
+        overflow: 'hidden',
+    },
+    sendButtonDisabled: {
+        opacity: 0.6,
+    },
+    sendButtonGradient: {
+        width: '100%',
+        height: '100%',
         alignItems: 'center',
         justifyContent: 'center',
-        marginLeft: 8,
     },
 });

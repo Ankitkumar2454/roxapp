@@ -9,6 +9,7 @@ export interface user {
   fullName: string;
   role: "admin" | "user" | string;
   profileImage: string;
+  userId: string;
 }
 
 export interface loginResponseData {
@@ -21,4 +22,131 @@ export interface loginResponse {
   success: boolean;
   data: loginResponseData;
   message: string;
+}
+
+export interface Contact {
+  id: string;
+  name: string;
+  status?: string;
+  avatar?: string;
+  initial?: string;
+  bgColor?: string;
+  isYou?: boolean;
+  username?: string;
+}
+
+export interface createContactData {
+  id: string;
+  username: string;
+  fullName: string;
+  profileImage: string;
+  role: "user" | "admin" | string;
+  isFirstLogin: boolean;
+}
+
+export interface createContactResponse {
+  success: boolean;
+  message: string;
+  code?: string;
+  data?: createContactData;
+}
+
+export interface PendingRequest {
+  id: string;
+  name: string;
+  username: string;
+  avatar?: string;
+  initial?: string;
+  bgColor?: string;
+  requestDate: string;
+  status: "pending" | "accepted" | "rejected";
+}
+
+export interface groupChatResponse {
+  message: string;
+  data: any;
+  success: boolean;
+}
+
+export interface Friend {
+  id: string;
+  name: string;
+  username: string;
+  avatar?: string;
+  initial: string;
+  bgColor: string;
+  isActive: boolean;
+  lastMessage?: string;
+  lastMessageTime?: string;
+  unread?: boolean;
+}
+
+
+export interface UserData {
+  _id: string;
+  fullName: string;
+  username: string;
+  profileImage: string;
+  role: string;
+  isFirstLogin: boolean;
+  isActive: boolean;
+  lastLogin: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiResponse {
+  success: boolean;
+  data: UserData;
+  message: string;
+}
+
+export interface InfoItem {
+  label: string;
+  value: string;
+  icon: string;
+}
+
+export interface Member {
+    _id: string;
+    username: string;
+    fullName: string;
+    profileImage?: string;
+    isActive?: boolean;
+}
+
+export interface GroupData {
+    _id: string;
+    name: string;
+    description?: string;
+    groupImage?: string;
+    createdBy: Member;
+    members: Member[];
+    admins: Member[];
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface Message {
+    id: string;
+    senderId: string;
+    senderName: string;
+    avatar?: string;
+    text: string;
+    time: string;
+    isSent: boolean;
+    isDelivered?: boolean;
+}
+
+export interface FriendGroupChat {
+    _id: string;
+    fullName: string;
+    username: string;
+    profileImage?: string;
+    isActive: boolean;
+}
+
+export interface GlobalLoaderProps {
+    visible: boolean;
+    message?: string;
 }

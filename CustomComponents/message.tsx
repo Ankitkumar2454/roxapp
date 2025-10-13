@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
         width: '92%',
         borderRadius: 16,
         padding: 14,
-        marginTop: 20,
+        marginTop: 5,
         backgroundColor: 'rgba(255,255,255,0.85)',
         flexDirection: 'row',
         alignItems: 'center',
