@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 export default function Dashboard() {
   return (
     <View style={styles.container}>
-      <Text style={styles.text}>🏠 Dashboard (Tabs Layout)</Text>
+      <Text style={styles.text}> Omni Channel </Text>
     </View>
   );
 }

@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { Tabs, useRouter } from "expo-router";
+import { Tabs, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 
 export default function ChatsLayout() {
     const [searchText, setSearchText] = useState("");
     const router = useRouter();
+    const pathname = usePathname();
 
     return (
         <>
@@ -61,7 +62,7 @@ export default function ChatsLayout() {
                         </View>
                     ),
                     headerRight: () => (
-                        <View style={styles.headerRight}>
+                        pathname !== "/Profile" && <View style={styles.headerRight}>
                             {/* 🔍 Search Box */}
                             <View style={styles.searchContainer}>
                                 <Ionicons name="search-outline" size={18} color="#fff" style={styles.searchIcon} />
@@ -73,6 +74,8 @@ export default function ChatsLayout() {
                                     style={styles.searchInput}
                                 />
                             </View>
+
+
 
                             {/* ⋮ Ellipsis Icon */}
                             {/* <TouchableOpacity style={styles.iconButton}>
@@ -111,21 +114,23 @@ export default function ChatsLayout() {
                 <Tabs.Screen name="Profile" options={{ title: "Profile" }} />
             </Tabs>
 
-            {/* 🟦 Floating Action Button */}
-            <TouchableOpacity
-                style={styles.fab}
-                onPress={() => router.push("/(contacts)/Contacts")}
-                activeOpacity={0.8}
-            >
-                <LinearGradient
-                    colors={["#009BFF", "#0066CC"]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.fabGradient}
+            {
+                pathname !== "/Profile" && <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => router.push("/(contacts)/Contacts")}
+                    activeOpacity={0.8}
                 >
-                    <Ionicons name="add" size={28} color="#fff" />
-                </LinearGradient>
-            </TouchableOpacity>
+                    <LinearGradient
+                        colors={["#009BFF", "#0066CC"]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.fabGradient}
+                    >
+                        <Ionicons name="add" size={28} color="#fff" />
+                    </LinearGradient>
+                </TouchableOpacity>
+            }
+
         </>
     );
 }
