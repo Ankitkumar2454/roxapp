@@ -6,13 +6,10 @@ import { loginPayload, loginResponse, loginResponseData } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-import AnimatedSplashScreen from "../splash";
 
 
-SplashScreen.preventAutoHideAsync();
 const screenWidth = Dimensions.get("window").width;
 const screenHeight = Dimensions.get("window").height
 
@@ -142,9 +139,6 @@ export default function LoginScreen() {
         return () => clearInterval(interval);
     }, []);
 
-    if (!isReady) {
-        return <AnimatedSplashScreen onFinish={() => setIsReady(true)} />;
-    }
 
     return (
         <KeyboardAvoidingView
