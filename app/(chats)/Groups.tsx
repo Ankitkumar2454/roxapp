@@ -3,13 +3,14 @@ import ENDPOINTS from '@/api/endPoints';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function GroupsScreen() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [searchTerm , setSearchTerm] = useState("");
 
   const handleGroupChatNavigation = (groupId: any) => {
     router.replace({
@@ -20,6 +21,11 @@ export default function GroupsScreen() {
 
   const handleCreateGroup = () => {
     router.push("/(GroupChats)/CreateGroupChats");
+  };
+
+  const getRandomColor = () => {
+    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
+    return colors[Math.floor(Math.random() * colors.length)];
   };
 
   const getAllGroupChats = async () => {
@@ -57,6 +63,7 @@ export default function GroupsScreen() {
       isActive: group.isActive,
       createdAt: group.createdAt,
       updatedAt: group.updatedAt,
+      initial: group.name ? group.name.charAt(0).toUpperCase() : group.name.charAt(0).toUpperCase(),
     }));
   };
 
@@ -76,7 +83,11 @@ export default function GroupsScreen() {
       activeOpacity={0.7}
     >
       <View style={styles.groupImageContainer}>
-        <Image source={{ uri: item.avatar }} style={styles.groupImage} />
+        <View style={styles.avatarContainer}>
+          <View style={[styles.avatarPlaceholder, { backgroundColor: getRandomColor() }]}>
+            <Text style={styles.avatarText}>{item.initial}</Text>
+          </View>
+        </View>
         <View style={styles.memberCountBadge}>
           <Ionicons name="people" size={12} color="#fff" />
           <Text style={styles.memberCountText}>{item.memberCount}</Text>
@@ -100,6 +111,12 @@ export default function GroupsScreen() {
                 { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
               ]}
             />
+            // <View style={styles.avatarContainer}>
+            //   <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
+            //     <Text style={styles.avatarText}>{item.initial}</Text>
+            //   </View>
+            //   {/* {item.isActive && <View style={styles.activeIndicator} />} */}
+            // </View>
           ))}
           {item.memberCount > 3 && (
             <View style={[styles.memberSmallAvatar, styles.moreMembers]}>
@@ -166,6 +183,18 @@ export default function GroupsScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.listHeader}>
+        <Text style={styles.headerTitle}>Your Groups</Text>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={18} color="#999" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by Groupname..."
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+          />
+        </View>
+      </View>
       <FlatList
         data={groups}
         renderItem={renderGroupItem}
@@ -203,6 +232,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  listHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 12,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#000',
+  },
+  conversationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  selectedConversation: {
+    backgroundColor: '#E3F2FD',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
   },
   loadingContainer: {
     flex: 1,
@@ -404,5 +473,37 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+  },
+  avatarPlaceholder: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  activeIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: '#4CAF50',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
   },
 });

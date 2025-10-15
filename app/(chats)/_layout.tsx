@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Tabs, usePathname, useRouter } from "expo-router";
 import { useState } from "react";
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function ChatsLayout() {
     const [searchText, setSearchText] = useState("");
@@ -62,26 +62,27 @@ export default function ChatsLayout() {
                         </View>
                     ),
                     headerRight: () => (
-                        pathname !== "/Profile" && <View style={styles.headerRight}>
-                            {/* 🔍 Search Box */}
-                            <View style={styles.searchContainer}>
-                                <Ionicons name="search-outline" size={18} color="#fff" style={styles.searchIcon} />
-                                <TextInput
-                                    value={searchText}
-                                    onChangeText={setSearchText}
-                                    placeholder="Search..."
-                                    placeholderTextColor="#E0E0E0"
-                                    style={styles.searchInput}
-                                />
-                            </View>
+                        // ( pathname !== "/Profile" && pathname !== "/Support" ) && <View style={styles.headerRight}>
+                        //     {/* 🔍 Search Box */}
+                        //     <View style={styles.searchContainer}>
+                        //         <Ionicons name="search-outline" size={18} color="#fff" style={styles.searchIcon} />
+                        //         <TextInput
+                        //             value={searchText}
+                        //             onChangeText={setSearchText}
+                        //             placeholder="Search..."
+                        //             placeholderTextColor="#E0E0E0"
+                        //             style={styles.searchInput}
+                        //         />
+                        //     </View>
 
 
 
-                            {/* ⋮ Ellipsis Icon */}
-                            {/* <TouchableOpacity style={styles.iconButton}>
-                                <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
-                            </TouchableOpacity> */}
-                        </View>
+                        //     {/* ⋮ Ellipsis Icon */}
+                        //     {/* <TouchableOpacity style={styles.iconButton}>
+                        //         <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+                        //     </TouchableOpacity> */}
+                        // </View>
+                        <></>
                     ),
                     headerTitle: "",
                     tabBarIcon: ({ color, focused }) => {
@@ -115,7 +116,7 @@ export default function ChatsLayout() {
             </Tabs>
 
             {
-                pathname !== "/Profile" && <TouchableOpacity
+                ( pathname !== "/Profile" && pathname !== "/Support" ) && <TouchableOpacity
                     style={styles.fab}
                     onPress={() => router.push("/(contacts)/Contacts")}
                     activeOpacity={0.8}

@@ -6,7 +6,7 @@ import { Friend } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 
 
@@ -17,6 +17,7 @@ export default function ChatScreen() {
   const [messageVisible, setMessageVisible] = useState(false);
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
   const [messageText, setMessageText] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   const getRandomColor = () => {
     const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
@@ -38,7 +39,6 @@ export default function ChatScreen() {
       if (response.data.success && response.data.data) {
         const currentUserData = await Storage.getItem("user");
 
-        // Transform backend data to Friend format
         const transformedFriends: Friend[] = response.data.data
           .filter((user: any) => user._id !== currentUserData?._id) // Exclude yourself
           .map((user: any) => ({
@@ -91,24 +91,20 @@ export default function ChatScreen() {
   };
 
   const renderChatItem = ({ item }: { item: Friend }) => (
-    <TouchableOpacity 
-      style={[styles.chatItem, item.unread && styles.unreadChat]} 
+    <TouchableOpacity
+      style={[styles.chatItem, item.unread && styles.unreadChat]}
       onPress={() => handleChatPress(item)}
       activeOpacity={0.7}
     >
-      {item.avatar ? (
-        <View style={styles.avatarContainer}>
-          <Image source={{ uri: item.avatar }} style={styles.avatar} />
-          {/* {item.isActive && <View style={styles.activeIndicator} />} */}
+
+      (
+      <View style={styles.avatarContainer}>
+        <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
+          <Text style={styles.avatarText}>{item.initial}</Text>
         </View>
-      ) : (
-        <View style={styles.avatarContainer}>
-          <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
-            <Text style={styles.avatarText}>{item.initial}</Text>
-          </View>
-          {item.isActive && <View style={styles.activeIndicator} />}
-        </View>
-      )}
+        {item.isActive && <View style={styles.activeIndicator} />}
+      </View>
+      )
 
       <View style={styles.chatContent}>
         <View style={styles.chatHeader}>
@@ -140,7 +136,7 @@ export default function ChatScreen() {
       <Text style={styles.emptySubtext}>
         Add friends to start chatting
       </Text>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.addFriendsButton}
         onPress={() => router.push("/(contacts)/Contacts")}
       >
@@ -161,6 +157,18 @@ export default function ChatScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.listHeader}>
+        <Text style={styles.headerTitle}>Your Friends</Text>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={18} color="#999" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name or username..."
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+          />
+        </View>
+      </View>
       <FlatList
         data={friends}
         renderItem={renderChatItem}
@@ -192,6 +200,46 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  listHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 12,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#000',
+  },
+  conversationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+  },
+  selectedConversation: {
+    backgroundColor: '#E3F2FD',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196F3',
   },
   loadingContainer: {
     flex: 1,
