@@ -9,7 +9,7 @@ import {
     Image,
     KeyboardAvoidingView,
     Platform,
-    SafeAreaView,
+
     ScrollView,
     StyleSheet,
     Text,
@@ -17,6 +17,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import io, { Socket } from 'socket.io-client';
 
 interface Message {
