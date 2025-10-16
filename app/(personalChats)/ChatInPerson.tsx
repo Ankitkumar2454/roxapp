@@ -213,6 +213,7 @@ export default function ChatMessageScreen() {
             {/* Messages */}
             <KeyboardAvoidingView style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                //  keyboardVerticalOffset={195}
             >
                 <ScrollView ref={scrollViewRef} contentContainerStyle={styles.chatScroll}>
                     {messages.map((msg) => {
@@ -278,7 +279,7 @@ const styles = StyleSheet.create({
 
     header: {
         flexDirection: 'row',
-        alignItems: "flex-end",
+         alignItems: "center",
         paddingHorizontal: 16,
         paddingVertical: 14,
         // paddingBottom:20,

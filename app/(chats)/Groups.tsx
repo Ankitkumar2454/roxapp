@@ -184,7 +184,7 @@ export default function GroupsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.listHeader}>
-        <Text style={styles.headerTitle}>Your Groups</Text>
+        {/* <Text style={styles.headerTitle}>Your Groups</Text> */}
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color="#999" />
           <TextInput

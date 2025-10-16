@@ -62,27 +62,24 @@ export default function ChatsLayout() {
                         </View>
                     ),
                     headerRight: () => (
-                        // ( pathname !== "/Profile" && pathname !== "/Support" ) && <View style={styles.headerRight}>
-                        //     {/* 🔍 Search Box */}
-                        //     <View style={styles.searchContainer}>
-                        //         <Ionicons name="search-outline" size={18} color="#fff" style={styles.searchIcon} />
-                        //         <TextInput
-                        //             value={searchText}
-                        //             onChangeText={setSearchText}
-                        //             placeholder="Search..."
-                        //             placeholderTextColor="#E0E0E0"
-                        //             style={styles.searchInput}
-                        //         />
-                        //     </View>
 
 
+                        (pathname !== "/Profile" ) && <View style={styles.headerRight}>
 
-                        //     {/* ⋮ Ellipsis Icon */}
-                        //     {/* <TouchableOpacity style={styles.iconButton}>
-                        //         <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
-                        //     </TouchableOpacity> */}
-                        // </View>
-                        <></>
+                            <View style={styles.listHeader}>
+                                <Text style={styles.titleText}>
+                                    {
+                                        pathname === "/Chat" ? "Chats" : pathname === "/Groups" ? "Groups" : "Support"
+                                    }
+                                </Text>
+
+                            </View>
+                            {/* ⋮ Ellipsis Icon */}
+                            {/* <TouchableOpacity style={styles.iconButton}>
+                                <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
+                            </TouchableOpacity> */}
+                        </View>
+                        // <></>
                     ),
                     headerTitle: "",
                     tabBarIcon: ({ color, focused }) => {
@@ -115,7 +112,7 @@ export default function ChatsLayout() {
                 <Tabs.Screen name="Profile" options={{ title: "Profile" }} />
             </Tabs>
             {
-                ( pathname !== "/Profile" && pathname !== "/Support" ) && <TouchableOpacity
+                (pathname !== "/Profile" && pathname !== "/Support") && <TouchableOpacity
                     style={styles.fab}
                     onPress={() => router.push("/(contacts)/Contacts")}
                     activeOpacity={0.8}
@@ -193,4 +190,20 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         elevation: 5,
     },
+    listHeader: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 8,
+        color: "#fff",
+
+        // backgroundColor: '#fff',
+        // borderBottomWidth: 1,
+        // borderBottomColor: '#f0f0f0',
+    },
+    titleText: {
+        fontSize: 18,
+        fontWeight: "600",
+        marginLeft: 8,
+        color: "#fff",
+    }
 });
