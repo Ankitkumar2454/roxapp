@@ -114,7 +114,6 @@ export default function ChatsLayout() {
                 <Tabs.Screen name="Support" options={{ title: "Support" }} />
                 <Tabs.Screen name="Profile" options={{ title: "Profile" }} />
             </Tabs>
-
             {
                 ( pathname !== "/Profile" && pathname !== "/Support" ) && <TouchableOpacity
                     style={styles.fab}

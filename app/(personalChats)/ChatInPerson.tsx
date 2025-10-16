@@ -211,7 +211,9 @@ export default function ChatMessageScreen() {
             </View>
 
             {/* Messages */}
-            <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <KeyboardAvoidingView style={{ flex: 1 }}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            >
                 <ScrollView ref={scrollViewRef} contentContainerStyle={styles.chatScroll}>
                     {messages.map((msg) => {
                         const isMe = msg.senderId === currentUserId;
@@ -331,7 +333,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#fff',
-        margin: 10,
+        marginHorizontal: 10,
         borderRadius: 25,
         paddingHorizontal: 10,
         paddingVertical: 6,
@@ -339,7 +341,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 3,
         elevation: 3,
-        marginBottom:50
+        // marginBottom: 50
     },
     iconButton: { paddingHorizontal: 6 },
     input: {

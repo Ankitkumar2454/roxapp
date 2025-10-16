@@ -394,6 +394,13 @@ export default function SupportScreen() {
         return 'alert-circle';
     }
   };
+  const maskPhoneNumber = (number: any) => {
+    if (!number) return '';
+    const lastThree = number.slice(-3);
+    const masked = '*'.repeat(number.length - 3);
+    return masked + lastThree;
+  };
+
 
   const renderConversationItem = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
@@ -428,7 +435,7 @@ export default function SupportScreen() {
             )}
           </View>
         </View>
-        <Text style={styles.phoneNumber}>{item.phoneNumber}</Text>
+        <Text style={styles.phoneNumber}> {maskPhoneNumber(item.phoneNumber)}</Text>
         <Text style={styles.lastMessage} numberOfLines={1}>
           {item.direction === 'outgoing' ? 'You: ' : ''}{item.lastMessage}
         </Text>
@@ -641,11 +648,15 @@ export default function SupportScreen() {
       </View>
     );
   }
- return (
+  return (
 
     <View style={styles.container}>
       {selectedConversation ? (
-        <View style={styles.chatContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={130}
+          style={{ flex: 1 }}
+        >
           <View style={styles.chatHeader}>
             <TouchableOpacity onPress={() => {
               setSelectedConversation(null);
@@ -655,7 +666,9 @@ export default function SupportScreen() {
             </TouchableOpacity>
             <View style={styles.chatHeaderContent}>
               <Text style={styles.chatHeaderName}>{selectedConversation.customerName}</Text>
-              <Text style={styles.chatHeaderPhone}>{selectedConversation.phoneNumber}</Text>
+              <Text style={styles.chatHeaderPhone}>
+                {maskPhoneNumber(selectedConversation.phoneNumber)}
+              </Text>
             </View>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedConversation.status) + '20' }]}>
               <Ionicons
@@ -668,16 +681,12 @@ export default function SupportScreen() {
               </Text>
             </View>
           </View>
-
           {loadingMessages ? (
-
             <View style={styles.loadingMessagesContainer}>
               <ActivityIndicator size="large" color="#009BFF" />
               <Text style={styles.loadingText}>Loading messages...</Text>
             </View>
-          ) : (
-
-
+          ) : (<>
             <FlatList
               ref={flatListRef}
               data={messages}
@@ -692,12 +701,6 @@ export default function SupportScreen() {
                 </View>
               )}
             />
-
-          )}
-          <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          >
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.textInput}
@@ -709,6 +712,7 @@ export default function SupportScreen() {
                 editable={!sendingMessage}
                 onSubmitEditing={handleSendMessage}
                 blurOnSubmit={false}
+
               />
               <TouchableOpacity
                 style={[
@@ -725,42 +729,48 @@ export default function SupportScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </KeyboardAvoidingView>
 
-        </View>
-      ) : (
-        <View style={styles.mainContainer}>
-          <View style={styles.listHeader}>
-            <Text style={styles.headerTitle}>Support Messages</Text>
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={18} color="#999" />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search by name or number..."
-                value={searchTerm}
-                onChangeText={setSearchTerm}
-              />
+
+          </>
+          )}
+
+
+        </KeyboardAvoidingView>
+
+      ) :
+        (
+          <View style={styles.mainContainer}>
+            <View style={styles.listHeader}>
+              <Text style={styles.headerTitle}>Support Messages</Text>
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={18} color="#999" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search by name or number..."
+                  value={searchTerm}
+                  onChangeText={setSearchTerm}
+                />
+              </View>
             </View>
-          </View>
 
-          <FlatList
-            data={filteredConversations}
-            renderItem={renderConversationItem}
-            keyExtractor={(item) => item.id}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            ListEmptyComponent={ListEmptyComponent}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={['#009BFF']}
-                tintColor="#009BFF"
-              />
-            }
-            contentContainerStyle={filteredConversations.length === 0 ? styles.emptyListContent : undefined}
-          />
-        </View>
-      )}
+            <FlatList
+              data={filteredConversations}
+              renderItem={renderConversationItem}
+              keyExtractor={(item) => item.id}
+              ItemSeparatorComponent={() => <View style={styles.separator} />}
+              ListEmptyComponent={ListEmptyComponent}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  colors={['#009BFF']}
+                  tintColor="#009BFF"
+                />
+              }
+              contentContainerStyle={filteredConversations.length === 0 ? styles.emptyListContent : undefined}
+            />
+          </View>
+        )}
 
       <GlobalMessage
         type={messageType}
@@ -778,12 +788,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 45,
-  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -958,8 +963,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   messagesList: {
-    padding: 16,
+    padding: 14,
     flexGrow: 1,
+    justifyContent: "flex-end",
   },
   messageBubbleContainer: {
     marginVertical: 4,
@@ -1032,30 +1038,31 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
-    backgroundColor: '#fff',
+    paddingBottom: Platform.OS === 'ios' ? 12 : 10,
+    backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    // marginBottom: 60
+
   },
   textInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: "#ddd",
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    paddingTop: Platform.OS === 'ios' ? 10 : 8,
-    maxHeight: 100,
-    marginRight: 8,
-    fontSize: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    marginLeft: 10,
+
+    borderRadius: 20,
+    padding: 10,
     backgroundColor: '#009BFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    // justifyContent: 'center',
+    // alignItems: 'center',
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',
