@@ -312,7 +312,7 @@ export default function GroupChatScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity 
-                    onPress={() => router.back()}
+                    onPress={() => router.replace("/(chats)/Groups")}
                     style={styles.backButton}
                     activeOpacity={0.7}
                 >
