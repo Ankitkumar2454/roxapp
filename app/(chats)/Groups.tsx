@@ -1,16 +1,18 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function GroupsScreen() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchTerm , setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredGroups, setFilteredGroups] = useState([]);
 
   const handleGroupChatNavigation = (groupId: any) => {
     router.replace({
@@ -28,6 +30,27 @@ export default function GroupsScreen() {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
+  // Search filtering function
+  const filterGroups = (searchText: string) => {
+    if (!searchText.trim()) {
+      setFilteredGroups(groups);
+      return;
+    }
+    
+    const filtered = groups.filter((group: any) => 
+      group.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      group.description?.toLowerCase().includes(searchText.toLowerCase()) ||
+      group.createdBy?.fullName?.toLowerCase().includes(searchText.toLowerCase())
+    );
+    setFilteredGroups(filtered);
+  };
+
+  // Handle search input change
+  const handleSearchChange = (text: string) => {
+    setSearchTerm(text);
+    filterGroups(text);
+  };
+
   const getAllGroupChats = async () => {
     try {
       setError(null);
@@ -37,13 +60,16 @@ export default function GroupsScreen() {
       if (data.success && data.data) {
         const formattedGroups = formatGroupsData(data.data);
         setGroups(formattedGroups);
+        setFilteredGroups(formattedGroups);
       } else {
         setGroups([]);
+        setFilteredGroups([]);
       }
     } catch (error) {
       console.log("Error fetching groups:", error);
       // setError("Failed to load groups");
       setGroups([]);
+      setFilteredGroups([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -76,80 +102,76 @@ export default function GroupsScreen() {
     getAllGroupChats();
   }, []);
 
+  // Update filtered groups when groups list changes
+  useEffect(() => {
+    filterGroups(searchTerm);
+  }, [groups]);
+
   const renderGroupItem = ({ item }: any) => (
     <TouchableOpacity
       style={styles.groupItem}
       onPress={() => handleGroupChatNavigation(item.id)}
-      activeOpacity={0.7}
+      activeOpacity={0.8}
     >
-      <View style={styles.groupImageContainer}>
+      <View style={styles.groupCard}>
         <View style={styles.avatarContainer}>
-          <View style={[styles.avatarPlaceholder, { backgroundColor: getRandomColor() }]}>
-            <Text style={styles.avatarText}>{item.initial}</Text>
+          <View style={styles.avatarPlaceholder}>
+            <Image 
+              source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${getRandomColor().replace('#', '')}&fontSize=20&fontWeight=600` }}
+              style={styles.avatarImage}
+              defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${getRandomColor().replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
+            />
+          </View>
+          <View style={styles.memberCountBadge}>
+            <Ionicons name="people" size={10} color="#fff" />
+            <Text style={styles.memberCountText}>{item.memberCount}</Text>
           </View>
         </View>
-        <View style={styles.memberCountBadge}>
-          <Ionicons name="people" size={12} color="#fff" />
-          <Text style={styles.memberCountText}>{item.memberCount}</Text>
-        </View>
-      </View>
 
-      <View style={styles.groupContent}>
-        <Text style={styles.groupName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.groupDescription} numberOfLines={1}>
-          {item.description || 'No description'}
-        </Text>
-
-        {/* Members avatars */}
-        <View style={styles.membersAvatarContainer}>
-          {item.members.slice(0, 3).map((member: any, index: any) => (
-            <Image
-              key={member._id}
-              source={{ uri: member.profileImage }}
-              style={[
-                styles.memberSmallAvatar,
-                { marginLeft: index > 0 ? -8 : 0, zIndex: 3 - index },
-              ]}
-            />
-            // <View style={styles.avatarContainer}>
-            //   <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
-            //     <Text style={styles.avatarText}>{item.initial}</Text>
-            //   </View>
-            //   {/* {item.isActive && <View style={styles.activeIndicator} />} */}
-            // </View>
-          ))}
-          {item.memberCount > 3 && (
-            <View style={[styles.memberSmallAvatar, styles.moreMembers]}>
-              <Text style={styles.moreMembersText}>+{item.memberCount - 3}</Text>
+        <View style={styles.groupContent}>
+          <View style={styles.groupHeader}>
+            <View style={styles.nameContainer}>
+              <Text style={styles.name}>{item.name}</Text>
             </View>
-          )}
+            <Text style={styles.time}>{item.memberCount} members</Text>
+          </View>
+
+          <View style={styles.messageRow}>
+            <Text style={styles.message} numberOfLines={1}>
+              {item.description || 'No description available'}
+            </Text>
+          </View>
+
+          <Text style={styles.username}>Created by {item.createdBy?.fullName || 'Unknown'}</Text>
         </View>
-
-        <Text style={styles.createdByText}>
-          Created by {item.createdBy.fullName}
-        </Text>
-      </View>
-
-      <View style={styles.actionContainer}>
-        <TouchableOpacity style={styles.moreButton}>
-          <Ionicons name="ellipsis-vertical" size={20} color="#666" />
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="people-outline" size={64} color="#CCC" />
-      </View>
-      <Text style={styles.emptyTitle}>No Groups Yet</Text>
-      <Text style={styles.emptyMessage}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        style={styles.emptyIconContainer}
+      >
+        <Ionicons name="people-outline" size={60} color="#fff" />
+      </LinearGradient>
+      <Text style={styles.emptyText}>No Groups Yet</Text>
+      <Text style={styles.emptySubtext}>
         Create or join a group to start chatting with your friends!
       </Text>
-      <TouchableOpacity style={styles.createGroupButton} onPress={handleCreateGroup}>
-        <Ionicons name="add-circle" size={20} color="#fff" />
-        <Text style={styles.createGroupButtonText}>Create a Group</Text>
+      <TouchableOpacity
+        style={styles.addFriendsButton}
+        onPress={handleCreateGroup}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          style={styles.addButtonGradient}
+        >
+          <Ionicons name="add-circle" size={20} color="#fff" />
+          <Text style={styles.addFriendsButtonText}>Create a Group</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
@@ -183,47 +205,41 @@ export default function GroupsScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar backgroundColor="#667eea" barStyle="light-content" />
       <View style={styles.listHeader}>
-        <Text style={styles.headerTitle}>Your Groups</Text>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#999" />
+          <Ionicons name="search" size={20} color="#667eea" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search by Groupname..."
+            placeholder="Search groups..."
+            placeholderTextColor="#999"
             value={searchTerm}
-            onChangeText={setSearchTerm}
+            onChangeText={handleSearchChange}
           />
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearchChange('')}>
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
       <FlatList
-        data={groups}
+        data={filteredGroups}
         renderItem={renderGroupItem}
         keyExtractor={(item: any) => item.id}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
+        ListEmptyComponent={EmptyState}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor="#007AFF"
+            colors={['#009BFF']}
+            tintColor="#009BFF"
           />
         }
-        ListEmptyComponent={EmptyState}
-        ListFooterComponent={() => <View style={{ height: 20 }} />}
+        contentContainerStyle={filteredGroups.length === 0 ? styles.emptyListContent : undefined}
       />
-
-      {/* <TouchableOpacity
-        style={styles.fab}
-        onPress={handleCreateGroup}
-      >
-        <LinearGradient
-          colors={["#009BFF", "#0066CC"]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.fabGradient}
-        >
-          <Ionicons name="add" size={32} color="#fff" />
-        </LinearGradient>
-      </TouchableOpacity> */}
     </View>
   );
 }
@@ -231,102 +247,215 @@ export default function GroupsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
+
+  // Header Styles
   listHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingHorizontal: 20,
+    paddingVertical: 10
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 12,
-  },
+
+  // Search Styles
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    height: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#000',
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#333',
   },
-  conversationItem: {
+
+  // Group Item Styles
+  groupItem: {
+    marginHorizontal: 12,
+    marginVertical: 3,
+  },
+  groupCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    paddingHorizontal: 16,
     backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
-  selectedConversation: {
-    backgroundColor: '#E3F2FD',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
+
+  // Avatar Styles
+  avatarContainer: {
+    position: 'relative',
+    marginRight: 12,
   },
+  avatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  memberCountBadge: {
+    position: 'absolute',
+    bottom: 1,
+    right: 1,
+    backgroundColor: '#667eea',
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  memberCountText: {
+    color: '#fff',
+    fontSize: 9,
+    fontWeight: '700',
+  },
+
+  // Group Content Styles
+  groupContent: {
+    flex: 1,
+  },
+  groupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  nameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginRight: 8,
+  },
+  time: {
+    fontSize: 12,
+    color: '#95a5a6',
+    fontWeight: '500',
+  },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  message: {
+    fontSize: 14,
+    color: '#7f8c8d',
+    flex: 1,
+    lineHeight: 20,
+  },
+  username: {
+    fontSize: 12,
+    color: '#667eea',
+    fontWeight: '500',
+  },
+
+  // Separator
+  separator: {
+    height: 2,
+    backgroundColor: 'transparent',
+  },
+
+  // Loading Styles
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#666',
+    marginTop: 16,
+    fontSize: 16,
+    color: '#7f8c8d',
+    fontWeight: '500',
+  },
+
+  // Empty State Styles
+  emptyListContent: {
+    flexGrow: 1,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    backgroundColor: '#fff',
+    paddingVertical: 80,
+    paddingHorizontal: 40,
   },
   emptyIconContainer: {
-    marginBottom: 20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
-  emptyTitle: {
-    fontSize: 20,
+  emptyText: {
+    fontSize: 24,
     fontWeight: '700',
-    color: '#333',
+    color: '#2c3e50',
     marginBottom: 8,
     textAlign: 'center',
   },
-  emptyMessage: {
-    fontSize: 14,
-    color: '#999',
+  emptySubtext: {
+    fontSize: 16,
+    color: '#7f8c8d',
     textAlign: 'center',
-    marginBottom: 24,
+    lineHeight: 24,
+    marginBottom: 32,
   },
-  createGroupButton: {
+  addFriendsButton: {
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
     flexDirection: 'row',
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
     alignItems: 'center',
-    gap: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    gap: 12,
   },
-  createGroupButtonText: {
+  addFriendsButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },
+
+  // Error State Styles
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
   errorIconContainer: {
     marginBottom: 20,
@@ -357,153 +486,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
-  },
-  groupItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    marginHorizontal: 12,
-    marginVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#E8E8E8',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  groupImageContainer: {
-    position: 'relative',
-    marginRight: 14,
-  },
-  groupImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-  },
-  memberCountBadge: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: '#007AFF',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  memberCountText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  groupContent: {
-    flex: 1,
-  },
-  groupName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 4,
-  },
-  groupDescription: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
-  },
-  membersAvatarContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  memberSmallAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 1.5,
-    borderColor: '#fff',
-  },
-  moreMembers: {
-    backgroundColor: '#F0F0F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  moreMembersText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#666',
-  },
-  createdByText: {
-    fontSize: 11,
-    color: '#999',
-    fontStyle: 'italic',
-  },
-  actionContainer: {
-    marginLeft: 10,
-  },
-  moreButton: {
-    padding: 8,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginHorizontal: 12,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    borderRadius: 28,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  fabGradient: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
-  avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#4CAF50',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginRight: 12,
   },
 });

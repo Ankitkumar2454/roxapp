@@ -4,9 +4,10 @@ import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Friend } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 
 
@@ -18,6 +19,7 @@ export default function ChatScreen() {
   const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
   const [messageText, setMessageText] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
 
   const getRandomColor = () => {
     const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
@@ -38,6 +40,7 @@ export default function ChatScreen() {
 
       if (response.data.success && response.data.data) {
         const currentUserData = await Storage.getItem("user");
+        console.log(response.data.data , "currentUserData")
 
         const transformedFriends: Friend[] = response.data.data
           .filter((user: any) => user._id !== currentUserData?._id) // Exclude yourself
@@ -55,6 +58,7 @@ export default function ChatScreen() {
           }));
 
         setFriends(transformedFriends);
+        setFilteredFriends(transformedFriends);
       }
     } catch (error: any) {
       console.log("Error fetching friends:", error);
@@ -74,9 +78,31 @@ export default function ChatScreen() {
     await fetchAllFriends();
   };
 
+  const filterFriends = (searchText: string) => {
+    if (!searchText.trim()) {
+      setFilteredFriends(friends);
+      return;
+    }
+    
+    const filtered = friends.filter(friend => 
+      friend.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      friend.username.toLowerCase().includes(searchText.toLowerCase())
+    );
+    setFilteredFriends(filtered);
+  };
+
+  const handleSearchChange = (text: string) => {
+    setSearchTerm(text);
+    filterFriends(text);
+  };
+
   useEffect(() => {
     handleInitialSetup();
   }, []);
+
+  useEffect(() => {
+    filterFriends(searchTerm);
+  }, [friends]);
 
   const handleChatPress = (friend: Friend) => {
     router.push({
@@ -90,58 +116,69 @@ export default function ChatScreen() {
     });
   };
 
-  const renderChatItem = ({ item }: { item: Friend }) => (
-    <TouchableOpacity
-      style={[styles.chatItem, item.unread && styles.unreadChat]}
-      onPress={() => handleChatPress(item)}
-      activeOpacity={0.7}
-    >
+  const renderChatItem = ({ item }: { item: Friend }) => {
 
-      (
-      <View style={styles.avatarContainer}>
-        <View style={[styles.avatarPlaceholder, { backgroundColor: item.bgColor }]}>
-          <Text style={styles.avatarText}>{item.initial}</Text>
-        </View>
-        {item.isActive && <View style={styles.activeIndicator} />}
-      </View>
-      )
-
-      <View style={styles.chatContent}>
-        <View style={styles.chatHeader}>
-          <View style={styles.nameContainer}>
-            <Text style={styles.name}>{item.name}</Text>
-            {/* {item.isActive && (
-              <View style={styles.onlineBadge}>
-                <Text style={styles.onlineText}>Online</Text>
-              </View>
-            )} */}
+    return (
+      <TouchableOpacity
+        style={[styles.chatItem, item.unread && styles.unreadChat]}
+        onPress={() => handleChatPress(item)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.chatCard}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatarPlaceholder}>
+              <Image 
+                source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
+                style={styles.avatarImage}
+                defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
+              />
+            </View>
+            {/* {isOnline && <View style={styles.activeIndicator} />} */}
           </View>
-          <Text style={styles.time}>{item.lastMessageTime}</Text>
+
+          <View style={styles.chatContent}>
+            <View style={styles.chatHeader}>
+              <View style={styles.nameContainer}>
+                <Text style={styles.name}>{item.name}</Text>
+              </View>
+            </View>
+            <View style={styles.messageRow}>
+              <Text style={styles.message} numberOfLines={1}>
+                {item.lastMessage}
+              </Text>
+              {item.unread && <View style={styles.unreadDot} />}
+            </View>
+            <Text style={styles.username}>@{item.username}</Text>
+          </View>
         </View>
-        <View style={styles.messageRow}>
-          <Text style={styles.message} numberOfLines={1}>
-            {item.lastMessage}
-          </Text>
-          {item.unread && <View style={styles.unreadDot} />}
-        </View>
-        <Text style={styles.username}>@{item.username}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const ListEmptyComponent = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="chatbubbles-outline" size={80} color="#ccc" />
-      <Text style={styles.emptyText}>No Friends Yet</Text>
+      <LinearGradient
+        colors={['#009BFF', '#0066CC']}
+        style={styles.emptyIconContainer}
+      >
+        <Ionicons name="chatbubbles-outline" size={60} color="#fff" />
+      </LinearGradient>
+      <Text style={styles.emptyText}>No Conversations Yet</Text>
       <Text style={styles.emptySubtext}>
-        Add friends to start chatting
+        Start chatting with your friends
       </Text>
       <TouchableOpacity
         style={styles.addFriendsButton}
         onPress={() => router.push("/(contacts)/Contacts")}
+        activeOpacity={0.8}
       >
-        <Ionicons name="person-add" size={20} color="#fff" />
-        <Text style={styles.addFriendsButtonText}>Add Friends</Text>
+        <LinearGradient
+          colors={['#009BFF', '#0066CC']}
+          style={styles.addButtonGradient}
+        >
+          <Ionicons name="person-add" size={20} color="#fff" />
+          <Text style={styles.addFriendsButtonText}>Add Friends</Text>
+        </LinearGradient>
       </TouchableOpacity>
     </View>
   );
@@ -157,20 +194,27 @@ export default function ChatScreen() {
 
   return (
     <View style={styles.container}>
+      <StatusBar backgroundColor="#667eea" barStyle="light-content" />
       <View style={styles.listHeader}>
-        <Text style={styles.headerTitle}>Your Friends</Text>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={18} color="#999" />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search by name or username..."
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
+          <Ionicons name="search" size={20} color="#667eea" />
+           <TextInput
+             style={styles.searchInput}
+             placeholder="Search conversations..."
+             placeholderTextColor="#999"
+             value={searchTerm}
+             onChangeText={handleSearchChange}
+           />
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => handleSearchChange('')}>
+              <Ionicons name="close-circle" size={20} color="#999" />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
+
       <FlatList
-        data={friends}
+        data={filteredFriends}
         renderItem={renderChatItem}
         keyExtractor={(item) => item.id}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -183,7 +227,7 @@ export default function ChatScreen() {
             tintColor="#009BFF"
           />
         }
-        contentContainerStyle={friends.length === 0 ? styles.emptyListContent : undefined}
+        contentContainerStyle={filteredFriends.length === 0 ? styles.emptyListContent : undefined}
       />
 
       <GlobalMessage
@@ -199,101 +243,117 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
+  },
+
+  // Header Styles
+  headerGradient: {
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   listHeader: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingHorizontal: 20,
+    paddingVertical:10
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 0,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
-    color: '#000',
-    marginBottom: 12,
+    color: '#fff',
+    letterSpacing: 0.5,
   },
+  addButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Search Styles
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 44,
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    height: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
-    color: '#000',
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#333',
   },
-  conversationItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-  },
-  selectedConversation: {
-    backgroundColor: '#E3F2FD',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#666',
-  },
+
+  // Chat Item Styles
   chatItem: {
+    marginHorizontal: 12,
+    marginVertical: 3,
+  },
+  chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 12,
-    paddingHorizontal: 16,
     backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 1,
   },
   unreadChat: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: '#f0f4ff',
+    borderLeftWidth: 4,
+    borderLeftColor: '#667eea',
   },
+
+  // Avatar Styles
   avatarContainer: {
     position: 'relative',
     marginRight: 12,
   },
-  avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-  },
   avatarPlaceholder: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  avatarText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: '#fff',
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
   },
   activeIndicator: {
     position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    bottom: 1,
+    right: 1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
     backgroundColor: '#4CAF50',
     borderWidth: 2,
     borderColor: '#fff',
   },
+
+  // Chat Content Styles
   chatContent: {
     flex: 1,
   },
@@ -301,7 +361,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   nameContainer: {
     flexDirection: 'row',
@@ -309,16 +369,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
-    color: '#000',
+    color: '#2c3e50',
     marginRight: 8,
   },
   onlineBadge: {
-    backgroundColor: '#E8F5E9',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e8f5e9',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  onlineDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4CAF50',
+    marginRight: 4,
   },
   onlineText: {
     fontSize: 10,
@@ -327,35 +396,54 @@ const styles = StyleSheet.create({
   },
   time: {
     fontSize: 12,
-    color: '#666',
+    color: '#95a5a6',
+    fontWeight: '500',
   },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   message: {
     fontSize: 14,
-    color: '#666',
+    color: '#7f8c8d',
     flex: 1,
+    lineHeight: 20,
   },
   username: {
     fontSize: 12,
-    color: '#009BFF',
-    marginTop: 2,
+    color: '#667eea',
+    fontWeight: '500',
   },
   unreadDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#00BCD4',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#667eea',
     marginLeft: 8,
   },
+
+  // Separator
   separator: {
-    height: 1,
-    backgroundColor: '#E0E0E0',
-    marginLeft: 78,
+    height: 2,
+    backgroundColor: 'transparent',
   },
+
+  // Loading Styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#7f8c8d',
+    fontWeight: '500',
+  },
+
+  // Empty State Styles
   emptyListContent: {
     flexGrow: 1,
   },
@@ -363,29 +451,41 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 100,
+    paddingVertical: 80,
+    paddingHorizontal: 40,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
   },
   emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 20,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#2c3e50',
+    marginBottom: 8,
     textAlign: 'center',
   },
+  emptySubtext: {
+    fontSize: 16,
+    color: '#7f8c8d',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 32,
+  },
   addFriendsButton: {
+    borderRadius: 30,
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#009BFF',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginTop: 20,
-    gap: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    gap: 12,
   },
   addFriendsButtonText: {
     color: '#fff',

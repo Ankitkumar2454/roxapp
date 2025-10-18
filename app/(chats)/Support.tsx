@@ -181,7 +181,6 @@ export default function SupportScreen() {
     fetchConversations();
   }, []);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     if (messages.length > 0) {
       setTimeout(() => {
@@ -285,17 +284,18 @@ export default function SupportScreen() {
     setMessages(prev => [...prev, optimisticMessage]);
     setInputValue('');
     setSendingMessage(true);
+    const msg = {
+      receiverId: selectedConversation.waId,
+      content: messageContent,
+      messageType: 'text',
+      profileName: selectedConversation.customerName
+    }
 
     try {
-      // Send via WebSocket
-      if (ws.current?.connected) {
-        ws.current.emit('whatsapp:send', {
-          receiverId: selectedConversation.waId,
-          content: messageContent,
-          messageType: 'text',
-        });
 
-        // Update message status to sent
+      if (ws.current?.connected) {
+        ws.current.emit('whatsapp:send', msg);
+
         setMessages(prev =>
           prev.map(msg =>
             msg.id === tempId
@@ -394,6 +394,13 @@ export default function SupportScreen() {
         return 'alert-circle';
     }
   };
+  const maskPhoneNumber = (number: any) => {
+    if (!number) return '';
+    const lastThree = number.slice(-3);
+    const masked = '*'.repeat(number.length - 3);
+    return masked + lastThree;
+  };
+
 
   const renderConversationItem = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
@@ -428,7 +435,7 @@ export default function SupportScreen() {
             )}
           </View>
         </View>
-        <Text style={styles.phoneNumber}>{item.phoneNumber}</Text>
+        <Text style={styles.phoneNumber}> {maskPhoneNumber(item.phoneNumber)}</Text>
         <Text style={styles.lastMessage} numberOfLines={1}>
           {item.direction === 'outgoing' ? 'You: ' : ''}{item.lastMessage}
         </Text>
@@ -482,6 +489,8 @@ export default function SupportScreen() {
 
   const handleWebSocketMessage = (event: any) => {
     const data = event;
+
+    console.log('Received WebSocket message:', data);
 
     if (!data || !data.messageId) {
       console.warn('⚠️ Invalid WhatsApp message format:', data);
@@ -626,11 +635,12 @@ export default function SupportScreen() {
       }
       if (ws.current) {
         ws.current.close();
+        setWsConnected(false);
       }
     };
   }, []);
 
-  if (loading && conversations.length === 0) {
+  if ((loading || !wsConnected) && conversations.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#009BFF" />
@@ -638,60 +648,59 @@ export default function SupportScreen() {
       </View>
     );
   }
-
   return (
-    <View  style={{flex:1}}>
-      <KeyboardAvoidingView enabled={true}
-        behavior='height'
-        style={styles.container}
-      >
-        {selectedConversation ? (
-          <View style={styles.chatContainer}>
-            <View style={styles.chatHeader}>
-              <TouchableOpacity onPress={() => {
-                setSelectedConversation(null);
-                setMessages([]);
-              }}>
-                <Ionicons name="chevron-back" size={24} color="#000" />
-              </TouchableOpacity>
-              <View style={styles.chatHeaderContent}>
-                <Text style={styles.chatHeaderName}>{selectedConversation.customerName}</Text>
-                <Text style={styles.chatHeaderPhone}>{selectedConversation.phoneNumber}</Text>
-              </View>
-              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedConversation.status) + '20' }]}>
-                <Ionicons
-                  name={getStatusIcon(selectedConversation.status) as any}
-                  size={14}
-                  color={getStatusColor(selectedConversation.status)}
-                />
-                <Text style={[styles.statusText, { color: getStatusColor(selectedConversation.status) }]}>
-                  {selectedConversation.status.charAt(0).toUpperCase() + selectedConversation.status.slice(1)}
-                </Text>
-              </View>
+
+    <View style={styles.container}>
+      {selectedConversation ? (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={130}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.chatHeader}>
+            <TouchableOpacity onPress={() => {
+              setSelectedConversation(null);
+              setMessages([]);
+            }}>
+              <Ionicons name="chevron-back" size={24} color="#000" />
+            </TouchableOpacity>
+            <View style={styles.chatHeaderContent}>
+              <Text style={styles.chatHeaderName}>{selectedConversation.customerName}</Text>
+              <Text style={styles.chatHeaderPhone}>
+                {maskPhoneNumber(selectedConversation.phoneNumber)}
+              </Text>
             </View>
-
-            {loadingMessages ? (
-              <View style={styles.loadingMessagesContainer}>
-                <ActivityIndicator size="large" color="#009BFF" />
-                <Text style={styles.loadingText}>Loading messages...</Text>
-              </View>
-            ) : (
-              <FlatList
-                ref={flatListRef}
-                data={messages}
-                renderItem={renderMessageBubble}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.messagesList}
-                onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-                onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
-                ListEmptyComponent={() => (
-                  <View style={styles.noMessagesContainer}>
-                    <Text style={styles.noMessagesText}>No messages yet</Text>
-                  </View>
-                )}
+            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedConversation.status) + '20' }]}>
+              <Ionicons
+                name={getStatusIcon(selectedConversation.status) as any}
+                size={14}
+                color={getStatusColor(selectedConversation.status)}
               />
-            )}
-
+              <Text style={[styles.statusText, { color: getStatusColor(selectedConversation.status) }]}>
+                {selectedConversation.status.charAt(0).toUpperCase() + selectedConversation.status.slice(1)}
+              </Text>
+            </View>
+          </View>
+          {loadingMessages ? (
+            <View style={styles.loadingMessagesContainer}>
+              <ActivityIndicator size="large" color="#009BFF" />
+              <Text style={styles.loadingText}>Loading messages...</Text>
+            </View>
+          ) : (<>
+            <FlatList
+              ref={flatListRef}
+              data={messages}
+              renderItem={renderMessageBubble}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.messagesList}
+              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+              ListEmptyComponent={() => (
+                <View style={styles.noMessagesContainer}>
+                  <Text style={styles.noMessagesText}>No messages yet</Text>
+                </View>
+              )}
+            />
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.textInput}
@@ -703,6 +712,7 @@ export default function SupportScreen() {
                 editable={!sendingMessage}
                 onSubmitEditing={handleSendMessage}
                 blurOnSubmit={false}
+
               />
               <TouchableOpacity
                 style={[
@@ -719,11 +729,19 @@ export default function SupportScreen() {
                 )}
               </TouchableOpacity>
             </View>
-          </View>
-        ) : (
+
+
+          </>
+          )}
+
+
+        </KeyboardAvoidingView>
+
+      ) :
+        (
           <View style={styles.mainContainer}>
             <View style={styles.listHeader}>
-              <Text style={styles.headerTitle}>Support Messages</Text>
+              {/* <Text style={styles.headerTitle}>Support Messages</Text> */}
               <View style={styles.searchContainer}>
                 <Ionicons name="search" size={18} color="#999" />
                 <TextInput
@@ -732,6 +750,11 @@ export default function SupportScreen() {
                   value={searchTerm}
                   onChangeText={setSearchTerm}
                 />
+                {searchTerm.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchTerm('')}>
+                    <Ionicons name="close-circle" size={20} color="#999" />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -754,14 +777,14 @@ export default function SupportScreen() {
           </View>
         )}
 
-        <GlobalMessage
-          type={messageType}
-          message={messageText}
-          visible={messageVisible}
-          onClose={() => setMessageVisible(false)}
-        />
-      </KeyboardAvoidingView>
+      <GlobalMessage
+        type={messageType}
+        message={messageText}
+        visible={messageVisible}
+        onClose={() => setMessageVisible(false)}
+      />
     </View>
+
   );
 }
 
@@ -770,6 +793,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -797,15 +821,21 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    height: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#333',
   },
   conversationItem: {
     flexDirection: 'row',
@@ -944,8 +974,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   messagesList: {
-    padding: 16,
+    padding: 14,
     flexGrow: 1,
+    justifyContent: "flex-end",
   },
   messageBubbleContainer: {
     marginVertical: 4,
@@ -1018,30 +1049,31 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 8,
-    backgroundColor: '#fff',
+    paddingBottom: Platform.OS === 'ios' ? 12 : 10,
+    backgroundColor: "#fff",
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    // marginBottom: 60
+
   },
   textInput: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: "#ddd",
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    paddingTop: Platform.OS === 'ios' ? 10 : 8,
-    maxHeight: 100,
-    marginRight: 8,
-    fontSize: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+
   },
   sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    marginLeft: 10,
+
+    borderRadius: 20,
+    padding: 10,
     backgroundColor: '#009BFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    // justifyContent: 'center',
+    // alignItems: 'center',
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',

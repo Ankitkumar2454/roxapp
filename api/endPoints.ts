@@ -28,7 +28,7 @@ const ENDPOINTS = {
   chat: {
     previous_message: "api/messages/messages",
   },
-  socket: "ws://1z76xlb5-8000.inc1.devtunnels.ms",
+  socket: "ws://polobet247.in",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory:"/api/whatsapp-messages/history"
