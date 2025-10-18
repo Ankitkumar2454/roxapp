@@ -741,7 +741,7 @@ export default function SupportScreen() {
         (
           <View style={styles.mainContainer}>
             <View style={styles.listHeader}>
-              <Text style={styles.headerTitle}>Support Messages</Text>
+              {/* <Text style={styles.headerTitle}>Support Messages</Text> */}
               <View style={styles.searchContainer}>
                 <Ionicons name="search" size={18} color="#999" />
                 <TextInput
@@ -750,6 +750,11 @@ export default function SupportScreen() {
                   value={searchTerm}
                   onChangeText={setSearchTerm}
                 />
+                {searchTerm.length > 0 && (
+                  <TouchableOpacity onPress={() => setSearchTerm('')}>
+                    <Ionicons name="close-circle" size={20} color="#999" />
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -816,15 +821,21 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 25,
+    paddingHorizontal: 16,
+    height: 50,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   searchInput: {
     flex: 1,
-    marginLeft: 8,
-    fontSize: 14,
+    marginLeft: 12,
+    fontSize: 16,
+    color: '#333',
   },
   conversationItem: {
     flexDirection: 'row',

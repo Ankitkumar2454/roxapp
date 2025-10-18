@@ -40,6 +40,7 @@ export default function ChatScreen() {
 
       if (response.data.success && response.data.data) {
         const currentUserData = await Storage.getItem("user");
+        console.log(response.data.data , "currentUserData")
 
         const transformedFriends: Friend[] = response.data.data
           .filter((user: any) => user._id !== currentUserData?._id) // Exclude yourself
@@ -77,7 +78,6 @@ export default function ChatScreen() {
     await fetchAllFriends();
   };
 
-  // Search filtering function
   const filterFriends = (searchText: string) => {
     if (!searchText.trim()) {
       setFilteredFriends(friends);
@@ -91,7 +91,6 @@ export default function ChatScreen() {
     setFilteredFriends(filtered);
   };
 
-  // Handle search input change
   const handleSearchChange = (text: string) => {
     setSearchTerm(text);
     filterFriends(text);
@@ -101,7 +100,6 @@ export default function ChatScreen() {
     handleInitialSetup();
   }, []);
 
-  // Update filtered friends when friends list changes
   useEffect(() => {
     filterFriends(searchTerm);
   }, [friends]);
@@ -118,55 +116,49 @@ export default function ChatScreen() {
     });
   };
 
-  const renderChatItem = ({ item }: { item: Friend }) => (
-    <TouchableOpacity
-      style={[styles.chatItem, item.unread && styles.unreadChat]}
-      onPress={() => handleChatPress(item)}
-      activeOpacity={0.8}
-    >
-      <View style={styles.chatCard}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatarPlaceholder}>
-            <Image 
-              source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
-              style={styles.avatarImage}
-              defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
-            />
-          </View>
-          {item.isActive && <View style={styles.activeIndicator} />}
-        </View>
+  const renderChatItem = ({ item }: { item: Friend }) => {
 
-        <View style={styles.chatContent}>
-          <View style={styles.chatHeader}>
-            <View style={styles.nameContainer}>
-              <Text style={styles.name}>{item.name}</Text>
-              {item.isActive && (
-                <View style={styles.onlineBadge}>
-                  <View style={styles.onlineDot} />
-                  <Text style={styles.onlineText}>Online</Text>
-                </View>
-              )}
+    return (
+      <TouchableOpacity
+        style={[styles.chatItem, item.unread && styles.unreadChat]}
+        onPress={() => handleChatPress(item)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.chatCard}>
+          <View style={styles.avatarContainer}>
+            <View style={styles.avatarPlaceholder}>
+              <Image 
+                source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
+                style={styles.avatarImage}
+                defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
+              />
             </View>
-            <Text style={styles.time}>{item.lastMessageTime}</Text>
+            {/* {isOnline && <View style={styles.activeIndicator} />} */}
           </View>
 
-          <View style={styles.messageRow}>
-            <Text style={styles.message} numberOfLines={1}>
-              {item.lastMessage}
-            </Text>
-            {item.unread && <View style={styles.unreadDot} />}
+          <View style={styles.chatContent}>
+            <View style={styles.chatHeader}>
+              <View style={styles.nameContainer}>
+                <Text style={styles.name}>{item.name}</Text>
+              </View>
+            </View>
+            <View style={styles.messageRow}>
+              <Text style={styles.message} numberOfLines={1}>
+                {item.lastMessage}
+              </Text>
+              {item.unread && <View style={styles.unreadDot} />}
+            </View>
+            <Text style={styles.username}>@{item.username}</Text>
           </View>
-
-          <Text style={styles.username}>@{item.username}</Text>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const ListEmptyComponent = () => (
     <View style={styles.emptyContainer}>
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={['#009BFF', '#0066CC']}
         style={styles.emptyIconContainer}
       >
         <Ionicons name="chatbubbles-outline" size={60} color="#fff" />
@@ -181,7 +173,7 @@ export default function ChatScreen() {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={['#009BFF', '#0066CC']}
           style={styles.addButtonGradient}
         >
           <Ionicons name="person-add" size={20} color="#fff" />

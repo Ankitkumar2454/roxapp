@@ -433,9 +433,23 @@ export default function GroupChatScreen() {
                                             </View>
                                         )}
                                         <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
-                                            <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
-                                                {msg.text}
-                                            </Text>
+                                            <View style={styles.messageContentContainer}>
+                                                {msg.text.startsWith('Forwarded: ') && (
+                                                    <View style={styles.forwardedMessageHeader}>
+                                                        <Ionicons 
+                                                            name="arrow-forward" 
+                                                            size={14} 
+                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
+                                                        />
+                                                        <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
+                                                            Forwarded
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
+                                                    {msg.text.startsWith('Forwarded: ') ? msg.text.substring(11) : msg.text}
+                                                </Text>
+                                            </View>
                                             <View style={styles.messageFooter}>
                                                 <Text style={[styles.msgTime, isMe ? styles.myTime : styles.theirTime]}>
                                                     {msg.time}
@@ -757,6 +771,28 @@ const styles = StyleSheet.create({
     messageText: { fontSize: 15 },
     myText: { color: '#fff' },
     theirText: { color: '#333' },
+    
+    // Forwarded message styles
+    messageContentContainer: {
+        flex: 1,
+    },
+    forwardedMessageHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    forwardedLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+        marginLeft: 4,
+    },
+    myForwardedLabel: {
+        color: 'rgba(255,255,255,0.7)',
+    },
+    theirForwardedLabel: {
+        color: '#666',
+    },
+    
     msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
     myTime: { color: 'rgba(255,255,255,0.7)' },
     theirTime: { color: '#999' },

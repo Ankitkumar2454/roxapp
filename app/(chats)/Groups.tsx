@@ -11,7 +11,8 @@ export default function GroupsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchTerm , setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filteredGroups, setFilteredGroups] = useState([]);
 
   const handleGroupChatNavigation = (groupId: any) => {
     router.replace({
@@ -29,6 +30,27 @@ export default function GroupsScreen() {
     return colors[Math.floor(Math.random() * colors.length)];
   };
 
+  // Search filtering function
+  const filterGroups = (searchText: string) => {
+    if (!searchText.trim()) {
+      setFilteredGroups(groups);
+      return;
+    }
+    
+    const filtered = groups.filter((group: any) => 
+      group.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      group.description?.toLowerCase().includes(searchText.toLowerCase()) ||
+      group.createdBy?.fullName?.toLowerCase().includes(searchText.toLowerCase())
+    );
+    setFilteredGroups(filtered);
+  };
+
+  // Handle search input change
+  const handleSearchChange = (text: string) => {
+    setSearchTerm(text);
+    filterGroups(text);
+  };
+
   const getAllGroupChats = async () => {
     try {
       setError(null);
@@ -38,13 +60,16 @@ export default function GroupsScreen() {
       if (data.success && data.data) {
         const formattedGroups = formatGroupsData(data.data);
         setGroups(formattedGroups);
+        setFilteredGroups(formattedGroups);
       } else {
         setGroups([]);
+        setFilteredGroups([]);
       }
     } catch (error) {
       console.log("Error fetching groups:", error);
       // setError("Failed to load groups");
       setGroups([]);
+      setFilteredGroups([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -76,6 +101,11 @@ export default function GroupsScreen() {
   useEffect(() => {
     getAllGroupChats();
   }, []);
+
+  // Update filtered groups when groups list changes
+  useEffect(() => {
+    filterGroups(searchTerm);
+  }, [groups]);
 
   const renderGroupItem = ({ item }: any) => (
     <TouchableOpacity
@@ -184,10 +214,10 @@ export default function GroupsScreen() {
             placeholder="Search groups..."
             placeholderTextColor="#999"
             value={searchTerm}
-            onChangeText={setSearchTerm}
+            onChangeText={handleSearchChange}
           />
           {searchTerm.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchTerm('')}>
+            <TouchableOpacity onPress={() => handleSearchChange('')}>
               <Ionicons name="close-circle" size={20} color="#999" />
             </TouchableOpacity>
           )}
@@ -195,7 +225,7 @@ export default function GroupsScreen() {
       </View>
 
       <FlatList
-        data={groups}
+        data={filteredGroups}
         renderItem={renderGroupItem}
         keyExtractor={(item: any) => item.id}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -208,7 +238,7 @@ export default function GroupsScreen() {
             tintColor="#009BFF"
           />
         }
-        contentContainerStyle={groups.length === 0 ? styles.emptyListContent : undefined}
+        contentContainerStyle={filteredGroups.length === 0 ? styles.emptyListContent : undefined}
       />
     </View>
   );
