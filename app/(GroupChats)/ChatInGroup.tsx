@@ -3,24 +3,36 @@ import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { GroupData, Message } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    FlatList,
     Image,
     KeyboardAvoidingView,
+    Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
+
+interface ForwardContact {
+    id: string;
+    name: string;
+    username: string;
+    avatar?: string;
+    type: 'friend' | 'group';
+    initial: string;
+    bgColor: string;
+}
 
 const CURRENT_USER_ID = 'me'; // This should come from your auth state
 
@@ -28,6 +40,7 @@ export default function GroupChatScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
     const groupId = params.groupId as string;
+    const forwardMessage = params.forwardMessage as string;
 
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState<Message[]>([]);
@@ -36,8 +49,16 @@ export default function GroupChatScreen() {
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
+    
+    // Forward message states
+    const [showForwardModal, setShowForwardModal] = useState(false);
+    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+    const [forwardContacts, setForwardContacts] = useState<ForwardContact[]>([]);
+    const [forwardGroups, setForwardGroups] = useState<ForwardContact[]>([]);
+    const [forwardLoading, setForwardLoading] = useState(false);
 
     const scrollViewRef = useRef<ScrollView>(null);
+    const forwardedMessageRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (groupId) {
@@ -48,6 +69,38 @@ export default function GroupChatScreen() {
     useEffect(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
+
+    // Handle forwarded message
+    useEffect(() => {
+        if (forwardMessage && !loading && forwardedMessageRef.current !== forwardMessage) {
+            forwardedMessageRef.current = forwardMessage;
+            console.log('Forwarding message to group:', forwardMessage);
+            
+            // Auto-send the forwarded message
+            setTimeout(() => {
+                const newMessage: Message = {
+                    id: Date.now().toString(),
+                    senderId: CURRENT_USER_ID,
+                    senderName: 'You',
+                    text: forwardMessage,
+                    time: new Date().toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false,
+                    }),
+                    isSent: true,
+                    isDelivered: false,
+                };
+
+                setMessages(prev => [...prev, newMessage]);
+                setMessage('');
+
+                // TODO: Send message to backend
+                // sendMessageToBackend(groupId, forwardMessage);
+                console.log('Message forwarded to group successfully');
+            }, 2000);
+        }
+    }, [forwardMessage, loading]);
 
     const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
         setMessageType(type);
@@ -111,6 +164,119 @@ export default function GroupChatScreen() {
         return groupData.admins.some(admin => admin._id === CURRENT_USER_ID);
     };
 
+    // Forward message functions
+    const getRandomColor = () => {
+        const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    };
+
+    // Utility function to handle forwarded message text
+    const getForwardText = (originalText: string): string => {
+        // Check if message is already forwarded
+        if (originalText.startsWith('Forwarded: ')) {
+            return originalText; // Don't add another "Forwarded:" prefix
+        }
+        return `Forwarded: ${originalText}`;
+    };
+
+    const handleMessageLongPress = (message: Message) => {
+        setSelectedMessage(message);
+        setShowForwardModal(true);
+        fetchForwardContacts();
+    };
+
+    const fetchForwardContacts = async () => {
+        try {
+            setForwardLoading(true);
+            
+            // Fetch friends
+            const friendsResponse = await api.get(ENDPOINTS.friends.getAll);
+            if (friendsResponse.data.success && friendsResponse.data.data) {
+                const friends: ForwardContact[] = friendsResponse.data.data.map((friend: any) => ({
+                    id: friend._id,
+                    name: friend.fullName || friend.username,
+                    username: friend.username,
+                    avatar: friend.profileImage,
+                    type: 'friend' as const,
+                    initial: friend.fullName ? friend.fullName.charAt(0).toUpperCase() : friend.username.charAt(0).toUpperCase(),
+                    bgColor: getRandomColor(),
+                }));
+                setForwardContacts(friends);
+            }
+
+            // Fetch groups (exclude current group)
+            const groupsResponse = await api.get(ENDPOINTS.groups.get);
+            if (groupsResponse.data.success && groupsResponse.data.data) {
+                const groups: ForwardContact[] = groupsResponse.data.data
+                    .filter((group: any) => group._id !== groupId) // Exclude current group
+                    .map((group: any) => ({
+                        id: group._id,
+                        name: group.name,
+                        username: group.name,
+                        avatar: group.groupImage,
+                        type: 'group' as const,
+                        initial: group.name.charAt(0).toUpperCase(),
+                        bgColor: getRandomColor(),
+                    }));
+                setForwardGroups(groups);
+            }
+        } catch (error) {
+            console.error('Error fetching forward contacts:', error);
+        } finally {
+            setForwardLoading(false);
+        }
+    };
+
+    const handleForwardMessage = async (contact: ForwardContact) => {
+        if (!selectedMessage) return;
+
+        try {
+            // Use utility function to handle forwarded message text
+            const forwardText = getForwardText(selectedMessage.text);
+            const isAlreadyForwarded = selectedMessage.text.startsWith('Forwarded: ');
+            
+            console.log('Forwarding to:', contact.name, 'Type:', contact.type);
+            console.log('Original message:', selectedMessage.text);
+            console.log('Is already forwarded:', isAlreadyForwarded);
+            console.log('Forward text:', forwardText);
+            
+            if (contact.type === 'friend') {
+                // Forward to personal chat
+                console.log('Navigating to personal chat with:', contact.id);
+                router.push({
+                    pathname: "/(personalChats)/ChatInPerson",
+                    params: {
+                        friendId: contact.id,
+                        friendName: contact.name,
+                        friendUsername: contact.username,
+                        friendAvatar: contact.avatar || '',
+                        forwardMessage: forwardText,
+                    }
+                });
+            } else {
+                // Forward to group chat
+                console.log('Navigating to group chat with:', contact.id);
+                router.push({
+                    pathname: "/(GroupChats)/ChatInGroup",
+                    params: {
+                        groupId: contact.id,
+                        forwardMessage: forwardText,
+                    }
+                });
+            }
+            
+            setShowForwardModal(false);
+            setSelectedMessage(null);
+        } catch (error) {
+            console.error('Error forwarding message:', error);
+        }
+    };
+
+    const closeForwardModal = () => {
+        setShowForwardModal(false);
+        setSelectedMessage(null);
+    };
+
     if (loading) {
         return (
             <SafeAreaView style={styles.container}>
@@ -141,59 +307,53 @@ export default function GroupChatScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
+            <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} />
+            
             {/* Header */}
-            <LinearGradient
-                colors={['#009BFF', '#0066CC']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.header}
-            >
-                <TouchableOpacity
+            <View style={styles.header}>
+                <TouchableOpacity 
                     onPress={() => router.replace("/(chats)/Groups")}
                     style={styles.backButton}
+                    activeOpacity={0.7}
                 >
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
+                    <Ionicons name="arrow-back" size={24} color="black" />
                 </TouchableOpacity>
-
+                
                 <TouchableOpacity
                     style={styles.headerCenter}
                     onPress={() => {
-                        // TODO: Navigate to group info screen
-                        router.replace({
+                        router.push({
                             pathname: "/(GroupChats)/GroupDescription",
-                            params: {
-                                groupId
-                            }
-                        })
-                        // router.push({ pathname: '/(groups)/GroupInfo', params: { groupId } });
+                            params: { groupId }
+                        });
                     }}
+                    activeOpacity={0.7}
                 >
-                    <Image
-                        source={{
-                            uri: groupData.groupImage ||
-                                `https://ui-avatars.com/api/?name=${encodeURIComponent(groupData.name)}&background=009BFF&color=fff&size=128`
-                        }}
-                        style={styles.avatar}
-                    />
-                    <View style={styles.headerInfo}>
-                        <Text style={styles.headerName} numberOfLines={1}>
-                            {groupData.name}
-                        </Text>
-                        <Text style={styles.headerPhone}>
+                    <View style={styles.avatarContainer}>
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: '#2196F3' }]}>
+                            <Text style={styles.avatarText}>{groupData.name.charAt(0).toUpperCase()}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.userInfo}>
+                        <Text style={styles.groupName}>{groupData.name}</Text>
+                        <Text style={styles.memberCount}>
                             {groupData.members.length} {groupData.members.length === 1 ? 'member' : 'members'}
                         </Text>
                     </View>
                 </TouchableOpacity>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.headerIcon}>
-                        <Ionicons name="call-outline" size={24} color="#fff" />
+                
+                <View style={styles.headerIcons}>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="videocam-outline" size={22} color="black" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIcon}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="#fff" />
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="call-outline" size={22} color="black" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="ellipsis-vertical" size={20} color="black" />
                     </TouchableOpacity>
                 </View>
-            </LinearGradient>
+            </View>
 
             {/* Group Info Banner (if admin) */}
             {isUserAdmin() && (
@@ -231,121 +391,183 @@ export default function GroupChatScreen() {
                 </ScrollView>
             </View>
 
-            {/* KeyboardAvoidingView wraps ScrollView + Input */}
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
+            {/* Main Content with Keyboard Avoidance */}
+            <KeyboardAvoidingView 
+                style={styles.keyboardAvoidingContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 {/* Messages */}
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={styles.messagesContainer}
-                    contentContainerStyle={styles.messagesContent}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    {messages.length === 0 ? (
-                        <View style={styles.emptyMessagesContainer}>
-                            <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
-                            <Text style={styles.emptyMessagesText}>No messages yet</Text>
-                            <Text style={styles.emptyMessagesSubtext}>
-                                Be the first to send a message!
-                            </Text>
-                        </View>
-                    ) : (
-                        messages.map((msg) => {
-                            const isMe = msg.senderId === CURRENT_USER_ID;
-                            return (
-                                <View key={msg.id} style={{ marginBottom: 12 }}>
-                                    {!isMe && (
-                                        <View style={styles.senderRow}>
-                                            {msg.avatar && (
-                                                <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
-                                            )}
-                                            <Text style={styles.senderName}>{msg.senderName}</Text>
-                                        </View>
-                                    )}
-                                    <View
-                                        style={[
-                                            styles.messageBubble,
-                                            isMe ? styles.sentBubble : styles.receivedBubble,
-                                        ]}
+                <View style={styles.chatContainer}>
+                    <ScrollView 
+                        ref={scrollViewRef} 
+                        contentContainerStyle={styles.chatScroll}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        nestedScrollEnabled={true}
+                    >
+                        {messages.length === 0 ? (
+                            <View style={styles.emptyMessagesContainer}>
+                                <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
+                                <Text style={styles.emptyMessagesText}>No messages yet</Text>
+                                <Text style={styles.emptyMessagesSubtext}>
+                                    Be the first to send a message!
+                                </Text>
+                            </View>
+                        ) : (
+                            messages.map((msg) => {
+                                const isMe = msg.senderId === CURRENT_USER_ID;
+                                return (
+                                    <TouchableOpacity
+                                        key={msg.id}
+                                        style={[styles.messageRow, isMe ? styles.messageRight : styles.messageLeft]}
+                                        onLongPress={() => handleMessageLongPress(msg)}
+                                        activeOpacity={0.8}
                                     >
-                                        <Text
-                                            style={[
-                                                styles.messageText,
-                                                isMe ? styles.sentText : styles.receivedText,
-                                            ]}
-                                        >
-                                            {msg.text}
-                                        </Text>
-                                        <View style={styles.messageFooter}>
-                                            <Text
-                                                style={[
-                                                    styles.messageTime,
-                                                    isMe ? styles.sentTime : styles.receivedTime,
-                                                ]}
-                                            >
-                                                {msg.time}
-                                            </Text>
-                                            {isMe && (
-                                                <Ionicons
-                                                    name={msg.isDelivered ? "checkmark-done" : "checkmark"}
-                                                    size={16}
-                                                    color={msg.isDelivered ? "#4CAF50" : "rgba(255, 255, 255, 0.6)"}
-                                                    style={styles.checkmark}
-                                                />
-                                            )}
+                                        {!isMe && (
+                                            <View style={styles.senderRow}>
+                                                {msg.avatar && (
+                                                    <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
+                                                )}
+                                                <Text style={styles.senderName}>{msg.senderName}</Text>
+                                            </View>
+                                        )}
+                                        <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
+                                            <View style={styles.messageContentContainer}>
+                                                {msg.text.startsWith('Forwarded: ') && (
+                                                    <View style={styles.forwardedMessageHeader}>
+                                                        <Ionicons 
+                                                            name="arrow-forward" 
+                                                            size={14} 
+                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
+                                                        />
+                                                        <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
+                                                            Forwarded
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
+                                                    {msg.text.startsWith('Forwarded: ') ? msg.text.substring(11) : msg.text}
+                                                </Text>
+                                            </View>
+                                            <View style={styles.messageFooter}>
+                                                <Text style={[styles.msgTime, isMe ? styles.myTime : styles.theirTime]}>
+                                                    {msg.time}
+                                                </Text>
+                                                {isMe && (
+                                                    <Ionicons
+                                                        name={msg.isDelivered ? "checkmark-done" : "checkmark"}
+                                                        size={16}
+                                                        color={msg.isDelivered ? "#4CAF50" : "rgba(255, 255, 255, 0.6)"}
+                                                        style={styles.checkmark}
+                                                    />
+                                                )}
+                                            </View>
                                         </View>
-                                    </View>
-                                </View>
-                            );
-                        })
-                    )}
-                </ScrollView>
+                                    </TouchableOpacity>
+                                );
+                            })
+                        )}
+                    </ScrollView>
+                </View>
 
                 {/* Input */}
-                <View style={styles.inputContainer}>
-                    <TouchableOpacity style={styles.attachButton}>
-                        <Ionicons name="add-circle" size={32} color="#009BFF" />
+                <View style={styles.inputBar}>
+                    <TouchableOpacity style={styles.iconButton}>
+                        <Ionicons name="add" size={26} color="#007AFF" />
                     </TouchableOpacity>
-
-                    <View style={styles.inputWrapper}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Type a message..."
-                            placeholderTextColor="#999"
-                            value={message}
-                            onChangeText={setMessage}
-                            multiline
-                            maxLength={1000}
-                        />
-                    </View>
-
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Type a message..."
+                        placeholderTextColor="#888"
+                        value={message}
+                        onChangeText={setMessage}
+                        multiline
+                    />
                     <TouchableOpacity
-                        style={[
-                            styles.sendButton,
-                            !message.trim() && styles.sendButtonDisabled
-                        ]}
+                        style={[styles.sendButton, !message.trim() && { opacity: 0.5 }]}
                         onPress={handleSend}
                         disabled={!message.trim()}
                     >
-                        <LinearGradient
-                            colors={message.trim() ? ['#009BFF', '#0066CC'] : ['#E0E0E0', '#BDBDBD']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.sendButtonGradient}
-                        >
-                            <Ionicons
-                                name="send"
-                                size={20}
-                                color="#fff"
-                            />
-                        </LinearGradient>
+                        <Ionicons name="send" size={22} color="#fff" />
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
+
+            {/* Forward Message Modal */}
+            <Modal
+                visible={showForwardModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={closeForwardModal}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.forwardModal}>
+                        <View style={styles.forwardModalHeader}>
+                            <Text style={styles.forwardModalTitle}>Forward Message</Text>
+                            <TouchableOpacity onPress={closeForwardModal}>
+                                <Ionicons name="close" size={24} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {selectedMessage && (
+                            <View style={styles.selectedMessagePreview}>
+                                <View style={styles.messagePreviewHeader}>
+                                    <Text style={styles.messagePreviewLabel}>Message to forward:</Text>
+                                    {selectedMessage.text.startsWith('Forwarded: ') && (
+                                        <View style={styles.forwardedBadge}>
+                                            <Ionicons name="arrow-forward" size={12} color="#fff" />
+                                            <Text style={styles.forwardedBadgeText}>Already Forwarded</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text style={styles.selectedMessageText} numberOfLines={2}>
+                                    "{selectedMessage.text}"
+                                </Text>
+                            </View>
+                        )}
+
+                        {forwardLoading ? (
+                            <View style={styles.forwardLoadingContainer}>
+                                <ActivityIndicator size="large" color="#009BFF" />
+                                <Text style={styles.forwardLoadingText}>Loading contacts...</Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={[...forwardContacts, ...forwardGroups]}
+                                keyExtractor={(item) => item.id}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={styles.forwardContactItem}
+                                        onPress={() => handleForwardMessage(item)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.forwardContactAvatar}>
+                                            <View style={[styles.forwardAvatarPlaceholder, { backgroundColor: item.bgColor }]}>
+                                                <Text style={styles.forwardAvatarText}>{item.initial}</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.forwardContactInfo}>
+                                            <Text style={styles.forwardContactName}>{item.name}</Text>
+                                            <Text style={styles.forwardContactType}>
+                                                {item.type === 'friend' ? 'Personal Chat' : 'Group Chat'}
+                                            </Text>
+                                        </View>
+                                        <Ionicons name="arrow-forward" size={20} color="#009BFF" />
+                                    </TouchableOpacity>
+                                )}
+                                ListEmptyComponent={() => (
+                                    <View style={styles.forwardEmptyContainer}>
+                                        <Ionicons name="people-outline" size={48} color="#ccc" />
+                                        <Text style={styles.forwardEmptyText}>No contacts available</Text>
+                                    </View>
+                                )}
+                                contentContainerStyle={styles.forwardListContent}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
 
             <GlobalMessage
                 type={messageType}
@@ -358,10 +580,7 @@ export default function GroupChatScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
+    container: { flex: 1, backgroundColor: '#E9F0F7' },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -396,52 +615,74 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
     },
+    keyboardAvoidingContainer: { 
+        flex: 1,
+    },
+    chatContainer: { 
+        flex: 1, 
+        marginTop: 10, // Space between header and chat
+        backgroundColor: '#E9F0F7',
+    },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        paddingTop: 50,
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        paddingHorizontal: 0,
+        marginHorizontal: 10,
+        marginTop: 20, // Top margin for status bar
+        backgroundColor: '#fff',
+        borderRadius: 45,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        zIndex: 1000, // Ensure header stays on top
     },
     backButton: {
-        marginRight: 12,
-        padding: 4,
+        padding: 6,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        marginLeft: 12,
     },
-    headerCenter: {
+    headerCenter: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        flex: 1, 
+        marginLeft: 8 
+    },
+    headerIcons: { 
+        flexDirection: 'row', 
+        gap: 6,
+        marginRight: 12,
+    },
+    headerIconButton: {
+        padding: 6,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
+    userInfo: {
         flex: 1,
-        flexDirection: 'row',
+        marginLeft: 8,
+    },
+    avatarContainer: {
+        position: 'relative',
+    },
+    avatarPlaceholder: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         alignItems: 'center',
+        justifyContent: 'center',
     },
-    avatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        marginRight: 12,
-        borderWidth: 2,
-        borderColor: '#fff',
-    },
-    headerInfo: {
-        flex: 1,
-    },
-    headerName: {
-        fontSize: 17,
-        fontWeight: '700',
+    avatarText: {
+        fontSize: 14,
+        fontWeight: '600',
         color: '#fff',
     },
-    headerPhone: {
-        fontSize: 13,
-        color: '#fff',
-        marginTop: 2,
-        opacity: 0.9,
-    },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    headerIcon: {
-        marginLeft: 16,
-        padding: 4,
-    },
+    groupName: { fontSize: 14, fontWeight: '600', color: 'black' },
+    memberCount: { fontSize: 11, color: 'gray' },
     adminBanner: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -449,6 +690,9 @@ const styles = StyleSheet.create({
         backgroundColor: '#FFF3E0',
         paddingVertical: 6,
         gap: 6,
+        marginHorizontal: 10,
+        borderRadius: 20,
+        marginTop: 5,
     },
     adminBannerText: {
         fontSize: 12,
@@ -458,8 +702,9 @@ const styles = StyleSheet.create({
     membersPreview: {
         backgroundColor: '#F8F8F8',
         paddingVertical: 8,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+        marginHorizontal: 10,
+        borderRadius: 20,
+        marginTop: 5,
     },
     membersScrollContent: {
         paddingHorizontal: 16,
@@ -501,15 +746,56 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#666',
     },
-    messagesContainer: {
-        flex: 1,
-        backgroundColor: '#F0F4F8',
-    },
-    messagesContent: {
-        padding: 16,
-        paddingBottom: 20,
+    chatScroll: { 
         flexGrow: 1,
+        paddingVertical: 12, 
+        paddingHorizontal: 10,
+        paddingBottom: 20, // Extra padding at bottom
     },
+    messageRow: { flexDirection: 'row', marginVertical: 6, alignItems: 'flex-end' },
+    messageLeft: { justifyContent: 'flex-start' },
+    messageRight: { justifyContent: 'flex-end', alignSelf: 'flex-end' },
+    messageAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+    messageBubble: {
+        maxWidth: '75%',
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    myBubble: { backgroundColor: '#2196F3', borderBottomRightRadius: 4 },
+    theirBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 4 },
+    messageText: { fontSize: 15 },
+    myText: { color: '#fff' },
+    theirText: { color: '#333' },
+    
+    // Forwarded message styles
+    messageContentContainer: {
+        flex: 1,
+    },
+    forwardedMessageHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    forwardedLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+        marginLeft: 4,
+    },
+    myForwardedLabel: {
+        color: 'rgba(255,255,255,0.7)',
+    },
+    theirForwardedLabel: {
+        color: '#666',
+    },
+    
+    msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+    myTime: { color: 'rgba(255,255,255,0.7)' },
+    theirTime: { color: '#999' },
     emptyMessagesContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -539,101 +825,172 @@ const styles = StyleSheet.create({
         color: '#009BFF',
         marginLeft: 6,
     },
-    messageAvatar: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-    },
-    messageBubble: {
-        maxWidth: '75%',
-        borderRadius: 16,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-    },
-    sentBubble: {
-        alignSelf: 'flex-end',
-        backgroundColor: '#009BFF',
-        borderBottomRightRadius: 4,
-    },
-    receivedBubble: {
-        alignSelf: 'flex-start',
-        backgroundColor: '#fff',
-        borderBottomLeftRadius: 4,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 1 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-        elevation: 2,
-    },
-    messageText: {
-        fontSize: 15,
-        lineHeight: 20,
-    },
-    sentText: {
-        color: '#fff',
-    },
-    receivedText: {
-        color: '#000',
-    },
     messageFooter: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 4,
         justifyContent: 'flex-end',
     },
-    messageTime: {
-        fontSize: 11,
-    },
-    sentTime: {
-        color: 'rgba(255, 255, 255, 0.8)',
-    },
-    receivedTime: {
-        color: '#999',
-    },
     checkmark: {
         marginLeft: 4,
     },
-    inputContainer: {
+    inputBar: {
         flexDirection: 'row',
-        alignItems: 'flex-end',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        alignItems: 'center',
         backgroundColor: '#fff',
-        borderTopWidth: 1,
-        borderTopColor: '#E0E0E0',
+        marginHorizontal: 10,
+        marginBottom: 10,
+        borderRadius: 25,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 3,
     },
-    attachButton: {
-        marginRight: 8,
-        marginBottom: 6,
-    },
-    inputWrapper: {
-        flex: 1,
-        backgroundColor: '#F5F5F5',
-        borderRadius: 24,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        maxHeight: 100,
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
-    },
+    iconButton: { paddingHorizontal: 6 },
     input: {
+        flex: 1,
         fontSize: 15,
+        maxHeight: 100,
+        paddingHorizontal: 10,
         color: '#000',
     },
     sendButton: {
+        backgroundColor: '#007AFF',
+        borderRadius: 20,
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    
+    // Forward Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    forwardModal: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: '80%',
+        minHeight: '50%',
+    },
+    forwardModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
+    },
+    forwardModalTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+    },
+    selectedMessagePreview: {
+        backgroundColor: '#F5F5F5',
+        marginHorizontal: 20,
+        marginVertical: 12,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 12,
+        borderLeftWidth: 4,
+        borderLeftColor: '#009BFF',
+    },
+    messagePreviewHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    messagePreviewLabel: {
+        fontSize: 12,
+        color: '#666',
+        fontWeight: '600',
+    },
+    forwardedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FF9800',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        gap: 4,
+    },
+    forwardedBadgeText: {
+        fontSize: 10,
+        color: '#fff',
+        fontWeight: '600',
+    },
+    selectedMessageText: {
+        fontSize: 14,
+        color: '#666',
+        fontStyle: 'italic',
+    },
+    forwardLoadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    forwardLoadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+    },
+    forwardListContent: {
+        paddingVertical: 8,
+    },
+    forwardContactItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    forwardContactAvatar: {
+        marginRight: 12,
+    },
+    forwardAvatarPlaceholder: {
         width: 44,
         height: 44,
         borderRadius: 22,
-        marginLeft: 8,
-        overflow: 'hidden',
-    },
-    sendButtonDisabled: {
-        opacity: 0.6,
-    },
-    sendButtonGradient: {
-        width: '100%',
-        height: '100%',
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    forwardAvatarText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#fff',
+    },
+    forwardContactInfo: {
+        flex: 1,
+    },
+    forwardContactName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 2,
+    },
+    forwardContactType: {
+        fontSize: 12,
+        color: '#666',
+    },
+    forwardEmptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    forwardEmptyText: {
+        fontSize: 16,
+        color: '#999',
+        marginTop: 12,
     },
 });

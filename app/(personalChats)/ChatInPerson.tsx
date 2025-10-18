@@ -2,21 +2,30 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    Easing,
+    FlatList,
     Image,
     KeyboardAvoidingView,
+    Modal,
     Platform,
-    SafeAreaView,
     ScrollView,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import io, { Socket } from 'socket.io-client';
 
 interface Message {
@@ -35,9 +44,23 @@ interface Message {
     isSent: boolean;
     isDelivered?: boolean;
     isRead?: boolean;
+    messageType?: 'text' | 'image' | 'voice';
+    mediaUrl?: string;
+    mediaThumbnail?: string;
+    voiceDuration?: number; // in seconds
 }
 
-const SOCKET_URL = "ws://polobet247.in";
+interface ForwardContact {
+    id: string;
+    name: string;
+    username: string;
+    avatar?: string;
+    type: 'friend' | 'group';
+    initial: string;
+    bgColor: string;
+}
+
+const SOCKET_URL = ENDPOINTS.socket;
 
 export default function ChatMessageScreen() {
     const router = useRouter();
@@ -47,23 +70,59 @@ export default function ChatMessageScreen() {
     const [isTyping, setIsTyping] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState('');
+    
+    // Forward message states
+    const [showForwardModal, setShowForwardModal] = useState(false);
+    const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+    const [forwardContacts, setForwardContacts] = useState<ForwardContact[]>([]);
+    const [forwardGroups, setForwardGroups] = useState<ForwardContact[]>([]);
+    const [forwardLoading, setForwardLoading] = useState(false);
+    const [isForwarding, setIsForwarding] = useState(false);
+    
+    // Media features states
+    const [showMediaOptions, setShowMediaOptions] = useState(false);
+    const [isRecording, setIsRecording] = useState(false);
+    const [recordingDuration, setRecordingDuration] = useState(0);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [showImagePreview, setShowImagePreview] = useState(false);
+    
+    // Audio recording states
+    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    const [recordingUri, setRecordingUri] = useState<string | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [sound, setSound] = useState<Audio.Sound | null>(null);
+    const [playbackPosition, setPlaybackPosition] = useState(0);
+    const [playbackDuration, setPlaybackDuration] = useState(0);
 
     const scrollViewRef = useRef<ScrollView>(null);
     const socketRef = useRef<Socket | null>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
+    const forwardedMessageRef = useRef<string | null>(null);
+    const recordingIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
+    const playbackStatusRef = useRef<Audio.Sound | null>(null);
 
     const friendId = params.friendId as string;
     const friendName = params.friendName as string;
     const friendAvatar = params.friendAvatar as string;
-    const friendUsername = params.friendUsername as string;
+    const forwardMessage = params.forwardMessage as string;
 
-    // Fetch previous chat messages
+    const getRandomColor = () => {
+        const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    };
+
+    // Utility function to handle forwarded message text
+    const getForwardText = (originalText: string): string => {
+        // Check if message is already forwarded
+        if (originalText.startsWith('Forwarded: ')) {
+            return originalText; // Don't add another "Forwarded:" prefix
+        }
+        return `Forwarded: ${originalText}`;
+    };
+
     const fetchPreviousMessages = async (userId: string, friendId: string) => {
         try {
             const response = await api.get(`${ENDPOINTS.chat.previous_message}/${friendId}/history`);
-            console.log(response, "response");
-            
-            // Updated path to access messages array
             if (response.data.success && response.data.data?.result?.messages) {
                 const formattedMessages: Message[] = response.data.data.result.messages.map((msg: any) => ({
                     _id: msg._id,
@@ -77,612 +136,1428 @@ export default function ChatMessageScreen() {
                     isDelivered: msg.status === 'delivered' || msg.status === 'read',
                     isRead: msg.status === 'read',
                 }));
-
                 setMessages(formattedMessages);
                 setTimeout(() => scrollToEnd(), 300);
             }
         } catch (error) {
-            console.error('Error fetching previous messages:', error);
+            console.error('Error fetching messages:', error);
         }
     };
 
-    // Initialize socket connection
     const initializeSocket = async () => {
         try {
             const token = await Storage.getItem("accessToken");
             const userData = await Storage.getItem("user");
-
-            if (!token || !userData) {
-                console.error('No authentication data');
-                return;
-            }
+            if (!token || !userData) return;
 
             setCurrentUserId(userData.id);
-            console.log(userData , "user")
-
-            // Fetch previous messages first
             await fetchPreviousMessages(userData.id, friendId);
 
             socketRef.current = io(SOCKET_URL, {
-                auth: {
-                    token: token,
-                },
+                auth: { token },
                 reconnection: true,
-                reconnectionDelay: 1000,
-                reconnectionDelayMax: 5000,
-                reconnectionAttempts: 5,
                 transports: ['websocket'],
             });
 
-            socketRef.current.on('connect', () => {
-                console.log('Socket connected');
-            });
-
-            // Receive incoming messages
-            socketRef.current.on('message:receive', (data) => {
-                console.log('Message received:', data);
-                handleIncomingMessage(data);
-            });
-
-            // Message delivery confirmation
-            socketRef.current.on('message:delivered', (data) => {
-                console.log('Message delivered:', data);
-                updateMessageStatus(data.messageId, 'delivered');
-            });
-
-            // Message read receipt
-            socketRef.current.on('message:read', (data) => {
-                console.log('Message read:', data);
-                updateMessageStatus(data.messageId, 'read');
-            });
-
-            // Message sent confirmation
-            socketRef.current.on('message:sent', (data) => {
-                console.log('Message sent:', data);
-                // Update local message with server _id
-                setMessages((prev) =>
-                    prev.map((msg) =>
-                        msg.id === data._id.toString() || msg.senderId === data.sender._id
-                            ? { ...msg, _id: data._id, id: data._id }
-                            : msg
-                    )
-                );
-            });
-
-            // Typing indicators
-            socketRef.current.on('typing:start', (data) => {
-                if (data.userId !== userData._id) {
-                    setIsTyping(true);
+            socketRef.current.on('message:receive', handleIncomingMessage);
+            socketRef.current.on('typing:start', (d) => {
+                setIsTyping(d.userId !== userData._id);
+                // Clear input when someone else is typing
+                if (d.userId !== userData._id) {
+                    setMessage('');
                 }
             });
-
-            socketRef.current.on('typing:stop', (data) => {
-                if (data.userId !== userData._id) {
-                    setIsTyping(false);
-                }
-            });
-
-            // Error handling
-            socketRef.current.on('connect_error', (error) => {
-                console.error('Socket error:', error);
+            socketRef.current.on('typing:stop', (d) => {
+                setIsTyping(false);
             });
 
             setIsLoading(false);
-        } catch (error) {
-            console.error('Socket initialization error:', error);
+        } catch (err) {
+            console.error('Socket init error:', err);
             setIsLoading(false);
         }
     };
 
-    const handleIncomingMessage = (messageData: any) => {
-        const newMessage: Message = {
-            _id: messageData._id,
-            id: messageData._id,
-            senderId: messageData.sender._id,
-            sender: messageData.sender,
-            text: messageData.content,
-            content: messageData.content,
-            time: formatTime(messageData.createdAt),
+    const handleIncomingMessage = (msg: any) => {
+        const newMsg: Message = {
+            _id: msg._id,
+            id: msg._id,
+            senderId: msg.sender._id,
+            sender: msg.sender,
+            text: msg.content,
+            content: msg.content,
+            time: formatTime(msg.createdAt),
             isSent: false,
-            isDelivered: messageData.status === 'delivered',
-            isRead: messageData.status === 'read',
         };
-
-        setMessages((prev) => [...prev, newMessage]);
+        setMessages((prev) => [...prev, newMsg]);
         scrollToEnd();
-
-        // Mark message as read
-        setTimeout(() => {
-            markMessageAsRead(messageData._id, messageData.sender._id);
-        }, 500);
     };
 
     const handleSend = async () => {
         if (!message.trim() || !socketRef.current) return;
-
         const tempId = Date.now().toString();
         const newMessage: Message = {
             id: tempId,
             senderId: currentUserId,
             text: message.trim(),
             content: message.trim(),
-            time: new Date().toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-            }),
+            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
             isSent: true,
-            isDelivered: false,
         };
-
         setMessages((prev) => [...prev, newMessage]);
         setMessage('');
         scrollToEnd();
 
-        // Stop typing indicator
-        emitTypingStop();
-
-        // Send message via socket
         socketRef.current.emit('message:send', {
             receiverId: friendId,
-            content: message.trim(),
+            content: newMessage.text,
             messageType: 'text',
         });
     };
 
-    const markMessageAsRead = (messageId: string, senderId: string) => {
-        if (socketRef.current) {
-            socketRef.current.emit('message:read', {
-                messageId: messageId,
-                senderId: senderId,
-            });
-        }
-    };
-
-    const updateMessageStatus = (messageId: string, status: 'delivered' | 'read') => {
-        setMessages((prev) =>
-            prev.map((msg) =>
-                msg.id === messageId || msg._id === messageId
-                    ? {
-                        ...msg,
-                        isDelivered: status === 'delivered' || status === 'read',
-                        isRead: status === 'read',
-                    }
-                    : msg
-            )
-        );
-    };
-
     const handleTyping = (text: string) => {
         setMessage(text);
-
-        if (typingTimeoutRef.current) {
-            clearTimeout(typingTimeoutRef.current);
-        }
-
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
         if (socketRef.current && text.length > 0) {
-            socketRef.current.emit('typing:start', {
-                receiverId: friendId,
-                conversationId: `${currentUserId}-${friendId}`,
-            });
+            socketRef.current.emit('typing:start', { receiverId: friendId });
         }
-
-        typingTimeoutRef.current = setTimeout(() => {
-            emitTypingStop();
-        }, 3000);
+        typingTimeoutRef.current = setTimeout(() => emitTypingStop(), 2000);
     };
 
     const emitTypingStop = () => {
-        if (socketRef.current) {
-            socketRef.current.emit('typing:stop', {
-                receiverId: friendId,
-                conversationId: `${currentUserId}-${friendId}`,
-            });
+        if (socketRef.current) socketRef.current.emit('typing:stop', { receiverId: friendId });
+    };
+
+    const scrollToEnd = () => setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
+
+    const formatTime = (timestamp: string): string =>
+        new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    // Forward message functions
+    const handleMessageLongPress = (message: Message) => {
+        setSelectedMessage(message);
+        setShowForwardModal(true);
+        fetchForwardContacts();
+    };
+
+    const fetchForwardContacts = async () => {
+        try {
+            setForwardLoading(true);
+            
+            // Fetch friends
+            const friendsResponse = await api.get(ENDPOINTS.friends.getAll);
+            if (friendsResponse.data.success && friendsResponse.data.data) {
+                const friends: ForwardContact[] = friendsResponse.data.data
+                    .filter((friend: any) => friend._id !== friendId) // Exclude current chat
+                    .map((friend: any) => ({
+                        id: friend._id,
+                        name: friend.fullName || friend.username,
+                        username: friend.username,
+                        avatar: friend.profileImage,
+                        type: 'friend' as const,
+                        initial: friend.fullName ? friend.fullName.charAt(0).toUpperCase() : friend.username.charAt(0).toUpperCase(),
+                        bgColor: getRandomColor(),
+                    }));
+                setForwardContacts(friends);
+            }
+
+            // Fetch groups
+            const groupsResponse = await api.get(ENDPOINTS.groups.get);
+            if (groupsResponse.data.success && groupsResponse.data.data) {
+                const groups: ForwardContact[] = groupsResponse.data.data.map((group: any) => ({
+                    id: group._id,
+                    name: group.name,
+                    username: group.name,
+                    avatar: group.groupImage,
+                    type: 'group' as const,
+                    initial: group.name.charAt(0).toUpperCase(),
+                    bgColor: getRandomColor(),
+                }));
+                setForwardGroups(groups);
+            }
+        } catch (error) {
+            console.error('Error fetching forward contacts:', error);
+        } finally {
+            setForwardLoading(false);
         }
     };
 
-    const formatTime = (timestamp: string): string => {
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true,
-        });
+    const handleForwardMessage = async (contact: ForwardContact) => {
+        if (!selectedMessage) return;
+
+        try {
+            // Use utility function to handle forwarded message text
+            const forwardText = getForwardText(selectedMessage.text);
+            const isAlreadyForwarded = selectedMessage.text.startsWith('Forwarded: ');
+            
+            console.log('Forwarding to:', contact.name, 'Type:', contact.type);
+            console.log('Original message:', selectedMessage.text);
+            console.log('Is already forwarded:', isAlreadyForwarded);
+            console.log('Forward text:', forwardText);
+            
+            if (contact.type === 'friend') {
+                // Forward to personal chat
+                console.log('Navigating to personal chat with:', contact.id);
+                router.push({
+                    pathname: "/(personalChats)/ChatInPerson",
+                    params: {
+                        friendId: contact.id,
+                        friendName: contact.name,
+                        friendUsername: contact.username,
+                        friendAvatar: contact.avatar || '',
+                        forwardMessage: forwardText,
+                    }
+                });
+            } else {
+                // Forward to group chat
+                console.log('Navigating to group chat with:', contact.id);
+                router.push({
+                    pathname: "/(GroupChats)/ChatInGroup",
+                    params: {
+                        groupId: contact.id,
+                        forwardMessage: forwardText,
+                    }
+                });
+            }
+            
+            setShowForwardModal(false);
+            setSelectedMessage(null);
+        } catch (error) {
+            console.error('Error forwarding message:', error);
+        }
     };
 
-    const scrollToEnd = () => {
-        setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+    const closeForwardModal = () => {
+        setShowForwardModal(false);
+        setSelectedMessage(null);
     };
+
+    // Media handling functions
+    const handleImageSelection = () => {
+        // TODO: Implement image picker integration
+        Alert.alert('Image Selection', 'Image picker integration will be implemented here');
+        setShowMediaOptions(false);
+    };
+
+    const startRecording = async () => {
+        try {
+            // Request audio permissions
+            const permissionResponse = await Audio.requestPermissionsAsync();
+            if (permissionResponse.status !== 'granted') {
+                Alert.alert('Permission Required', 'Please grant microphone permission to record voice messages.');
+                return;
+            }
+
+            // Configure audio mode
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: true,
+                playsInSilentModeIOS: true,
+            });
+
+            // Start recording
+            const { recording } = await Audio.Recording.createAsync(
+                Audio.RecordingOptionsPresets.HIGH_QUALITY
+            );
+            
+            setRecording(recording);
+            setIsRecording(true);
+            setRecordingDuration(0);
+            
+            // Start duration timer
+            recordingIntervalRef.current = setInterval(() => {
+                setRecordingDuration(prev => prev + 1);
+            }, 1000);
+
+            console.log('Recording started');
+        } catch (error) {
+            console.error('Failed to start recording:', error);
+            Alert.alert('Recording Error', 'Failed to start voice recording. Please try again.');
+        }
+    };
+
+    const stopRecording = async () => {
+        try {
+            if (!recording) return;
+
+            setIsRecording(false);
+            if (recordingIntervalRef.current) {
+                clearInterval(recordingIntervalRef.current);
+            }
+
+            await recording.stopAndUnloadAsync();
+            const uri = recording.getURI();
+            setRecordingUri(uri);
+            setRecording(null);
+
+            console.log('Recording stopped and stored at', uri);
+            
+            // Auto-send the voice message if duration > 1 second
+            if (recordingDuration > 0) {
+                handleSendVoice(uri!, recordingDuration);
+            }
+        } catch (error) {
+            console.error('Failed to stop recording:', error);
+            Alert.alert('Recording Error', 'Failed to stop voice recording.');
+        }
+    };
+
+    const handleVoiceRecording = () => {
+        if (isRecording) {
+            stopRecording();
+        } else {
+            startRecording();
+        }
+        setShowMediaOptions(false);
+    };
+
+    const handleSendImage = () => {
+        if (selectedImage) {
+            const tempId = Date.now().toString();
+            const newMessage: Message = {
+                id: tempId,
+                senderId: currentUserId,
+                text: 'Image',
+                content: 'Image',
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                isSent: true,
+                messageType: 'image',
+                mediaUrl: selectedImage,
+                mediaThumbnail: selectedImage,
+            };
+            setMessages((prev) => [...prev, newMessage]);
+            setSelectedImage(null);
+            setShowImagePreview(false);
+            scrollToEnd();
+            
+            // TODO: Send image to backend
+            console.log('Sending image:', selectedImage);
+        }
+    };
+
+    const playVoiceMessage = async (voiceUrl: string) => {
+        try {
+            if (isPlaying && sound) {
+                // Stop current playback
+                await sound.stopAsync();
+                setIsPlaying(false);
+                setSound(null);
+                return;
+            }
+
+            // Configure audio mode for playback
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+            });
+
+            // Load and play the sound
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: voiceUrl },
+                { shouldPlay: true }
+            );
+
+            setSound(newSound);
+            setIsPlaying(true);
+
+            // Set up playback status updates
+            newSound.setOnPlaybackStatusUpdate((status: any) => {
+                if (status.isLoaded) {
+                    setPlaybackPosition(status.positionMillis || 0);
+                    setPlaybackDuration(status.durationMillis || 0);
+                    
+                    if (status.didJustFinish) {
+                        setIsPlaying(false);
+                        setSound(null);
+                        setPlaybackPosition(0);
+                    }
+                }
+            });
+
+            console.log('Playing voice message');
+        } catch (error) {
+            console.error('Failed to play voice message:', error);
+            Alert.alert('Playback Error', 'Failed to play voice message.');
+        }
+    };
+
+    const handleSendVoice = async (voiceUrl: string, duration: number) => {
+        try {
+            const tempId = Date.now().toString();
+            const newMessage: Message = {
+                id: tempId,
+                senderId: currentUserId,
+                text: 'Voice message',
+                content: 'Voice message',
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                isSent: true,
+                messageType: 'voice',
+                mediaUrl: voiceUrl,
+                voiceDuration: duration,
+            };
+            setMessages((prev) => [...prev, newMessage]);
+            scrollToEnd();
+            
+            // Send voice to backend via socket
+            if (socketRef.current) {
+                // Convert audio file to base64 for sending
+                const base64Audio = await FileSystem.readAsStringAsync(voiceUrl, {
+                    encoding: 'base64',
+                });
+
+                socketRef.current.emit('message:send', {
+                    receiverId: friendId,
+                    content: 'Voice message',
+                    messageType: 'voice',
+                    mediaData: base64Audio,
+                    duration: duration,
+                });
+            }
+
+            console.log('Voice message sent:', voiceUrl, 'Duration:', duration);
+        } catch (error) {
+            console.error('Failed to send voice message:', error);
+            Alert.alert('Send Error', 'Failed to send voice message. Please try again.');
+        }
+    };
+
+    const formatDuration = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Animated Typing Indicator Component
+    const AnimatedTypingIndicator = () => {
+        const dot1Anim = useRef(new Animated.Value(0.3)).current;
+        const dot2Anim = useRef(new Animated.Value(0.3)).current;
+        const dot3Anim = useRef(new Animated.Value(0.3)).current;
+        const waveAnim = useRef(new Animated.Value(0)).current;
+
+        useEffect(() => {
+            // Create staggered dot animations
+            const createDotAnimation = (animValue: Animated.Value, delay: number) => {
+                return Animated.loop(
+                    Animated.sequence([
+                        Animated.delay(delay),
+                        Animated.timing(animValue, {
+                            toValue: 1,
+                            duration: 400,
+                            easing: Easing.out(Easing.quad),
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(animValue, {
+                            toValue: 0.3,
+                            duration: 400,
+                            easing: Easing.in(Easing.quad),
+                            useNativeDriver: true,
+                        }),
+                    ])
+                );
+            };
+
+            // Create wave animation
+            const createWaveAnimation = () => {
+                return Animated.loop(
+                    Animated.timing(waveAnim, {
+                        toValue: 1,
+                        duration: 1200,
+                        easing: Easing.inOut(Easing.sin),
+                        useNativeDriver: true,
+                    })
+                );
+            };
+
+            // Start all animations
+            const dot1Animation = createDotAnimation(dot1Anim, 0);
+            const dot2Animation = createDotAnimation(dot2Anim, 200);
+            const dot3Animation = createDotAnimation(dot3Anim, 400);
+            const waveAnimation = createWaveAnimation();
+
+            dot1Animation.start();
+            dot2Animation.start();
+            dot3Animation.start();
+            waveAnimation.start();
+
+            return () => {
+                dot1Animation.stop();
+                dot2Animation.stop();
+                dot3Animation.stop();
+                waveAnimation.stop();
+            };
+        }, []);
+
+        return (
+            <View style={styles.typingIndicator}>
+                <View style={styles.typingTextContainer}>
+                    <Text style={styles.typingText}>Typing</Text>
+                </View>
+                <View style={styles.dotsContainer}>
+                    <Animated.View 
+                        style={[
+                            styles.animatedDot, 
+                            { 
+                                opacity: dot1Anim,
+                                transform: [{
+                                    scale: dot1Anim.interpolate({
+                                        inputRange: [0.3, 1],
+                                        outputRange: [0.8, 1.2]
+                                    })
+                                }]
+                            }
+                        ]} 
+                    />
+                    <Animated.View 
+                        style={[
+                            styles.animatedDot, 
+                            { 
+                                opacity: dot2Anim,
+                                transform: [{
+                                    scale: dot2Anim.interpolate({
+                                        inputRange: [0.3, 1],
+                                        outputRange: [0.8, 1.2]
+                                    })
+                                }]
+                            }
+                        ]} 
+                    />
+                    <Animated.View 
+                        style={[
+                            styles.animatedDot, 
+                            { 
+                                opacity: dot3Anim,
+                                transform: [{
+                                    scale: dot3Anim.interpolate({
+                                        inputRange: [0.3, 1],
+                                        outputRange: [0.8, 1.2]
+                                    })
+                                }]
+                            }
+                        ]} 
+                    />
+                </View>
+            </View>
+        );
+    };
+
+    // Clear input when typing indicator is shown
+    useEffect(() => {
+        if (isTyping) {
+            setMessage('');
+        }
+    }, [isTyping]);
+
+    // Auto-scroll when typing indicator appears
+    useEffect(() => {
+        if (isTyping) {
+            setTimeout(() => {
+                scrollToEnd();
+            }, 100);
+        }
+    }, [isTyping]);
 
     useEffect(() => {
         initializeSocket();
-
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
             }
-            if (typingTimeoutRef.current) {
-                clearTimeout(typingTimeoutRef.current);
+            // Cleanup audio resources
+            if (sound) {
+                sound.unloadAsync();
+            }
+            if (recording) {
+                recording.stopAndUnloadAsync();
+            }
+            if (recordingIntervalRef.current) {
+                clearInterval(recordingIntervalRef.current);
             }
         };
     }, [friendId]);
 
+    // Handle forwarded message
+    useEffect(() => {
+        if (forwardMessage && socketRef.current && !isLoading && forwardedMessageRef.current !== forwardMessage) {
+            forwardedMessageRef.current = forwardMessage;
+            setIsForwarding(true);
+            console.log('Forwarding message:', forwardMessage);
+            
+            // Auto-send the forwarded message
+            setTimeout(() => {
+                if (socketRef.current && currentUserId) {
+                    const tempId = Date.now().toString();
+                    const newMessage: Message = {
+                        id: tempId,
+                        senderId: currentUserId,
+                        text: forwardMessage,
+                        content: forwardMessage,
+                        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                        isSent: true,
+                    };
+                    
+                    setMessages((prev) => [...prev, newMessage]);
+                    setMessage('');
+                    scrollToEnd();
+
+                    socketRef.current.emit('message:send', {
+                        receiverId: friendId,
+                        content: forwardMessage,
+                        messageType: 'text',
+                    });
+                    
+                    console.log('Message forwarded successfully');
+                    setIsForwarding(false);
+                }
+            }, 2000);
+        }
+    }, [forwardMessage, isLoading, currentUserId, friendId]);
+
     if (isLoading) {
         return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#00A8E8" />
-                    <Text style={{ marginTop: 12, color: '#666' }}>Loading messages...</Text>
-                </View>
+            <SafeAreaView style={styles.loadingWrapper}>
+                <ActivityIndicator size="large" color="#00A8E8" />
+                <Text style={{ color: '#777', marginTop: 10 }}>Loading chat...</Text>
             </SafeAreaView>
         );
     }
 
     return (
         <SafeAreaView style={styles.container}>
+            <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} />
+            
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={styles.backButton}
-                >
-                    <Ionicons name="arrow-back" size={24} color="#000" />
-                </TouchableOpacity>
+                 <TouchableOpacity 
+                     onPress={() => router.back()}
+                     style={styles.backButton}
+                     activeOpacity={0.7}
+                 >
+                     <Ionicons name="arrow-back" size={24} color="black" />
+                 </TouchableOpacity>
+                 
+                 <View style={styles.headerCenter}>
+                     <View style={styles.avatarContainer}>
+                         <View style={[styles.avatarPlaceholder, { backgroundColor: getRandomColor() }]}>
+                             <Text style={styles.avatarText}>{friendName[0]}</Text>
+                         </View>
+                     </View>
+                     <View style={styles.userInfo}>
+                         <Text style={styles.friendName}>{friendName}</Text>
+                         <Text style={styles.statusText}>
+                             {isTyping ? '✍️ Typing...' : '🟢 Online'}
+                         </Text>
+                     </View>
+                 </View>
+                 
+                 <View style={styles.headerIcons}>
+                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                         <Ionicons name="videocam-outline" size={22} color="black" />
+                     </TouchableOpacity>
+                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                         <Ionicons name="call-outline" size={22} color="black" />
+                     </TouchableOpacity>
+                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                         <Ionicons name="ellipsis-vertical" size={20} color="black" />
+                     </TouchableOpacity>
+                 </View>
+             </View>
 
-                <View style={styles.headerCenter}>
-                    <Image source={{ uri: friendAvatar }} style={styles.avatar} />
-                    <View style={styles.headerInfo}>
-                        <Text style={styles.headerName}>{friendName}</Text>
-                        <Text style={styles.headerStatus}>
-                            {isTyping ? 'typing...' : 'Online'}
-                        </Text>
-                    </View>
-                </View>
-
-                <View style={styles.headerRight}>
-                    <TouchableOpacity style={styles.headerIcon}>
-                        <Ionicons name="call-outline" size={24} color="#000" />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIcon}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="#000" />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Chat Area */}
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
+            {/* Main Content with Keyboard Avoidance */}
+            <KeyboardAvoidingView 
+                style={styles.keyboardAvoidingContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
-                <ScrollView
-                    ref={scrollViewRef}
-                    style={styles.messagesContainer}
-                    contentContainerStyle={styles.messagesContent}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                >
-                    {messages.length === 0 ? (
-                        <View style={styles.emptyChat}>
-                            <Ionicons name="chatbubble-outline" size={64} color="#ccc" />
-                            <Text style={styles.emptyText}>Start a conversation</Text>
+                {/* Messages */}
+                <View style={styles.chatContainer}>
+                    <ScrollView 
+                        ref={scrollViewRef} 
+                        contentContainerStyle={[styles.chatScroll, { paddingBottom: 20 }]}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        nestedScrollEnabled={true}
+                    >
+                        {                        messages.map((msg) => {
+                            const isMe = msg.senderId === currentUserId;
+                            return (
+                                <TouchableOpacity
+                                    key={msg.id}
+                                    style={[styles.messageRow, isMe ? styles.messageRight : styles.messageLeft]}
+                                    onLongPress={() => handleMessageLongPress(msg)}
+                                    activeOpacity={0.8}
+                                >
+                                    {!isMe && <Image source={{ uri: "https://api.dicebear.com/7.x/adventurer/png?seed=HappyUser" }} style={styles.msgAvatar} />}
+                                    <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
+                                        {msg.messageType === 'image' ? (
+                                            <View style={styles.imageMessageContainer}>
+                                                <Image 
+                                                    source={{ uri: msg.mediaUrl }} 
+                                                    style={styles.messageImage}
+                                                    resizeMode="cover"
+                                                />
+                                                <View style={styles.imageOverlay}>
+                                                    <Ionicons name="image" size={16} color="#fff" />
+                                                </View>
+                                            </View>
+                                        ) : msg.messageType === 'voice' ? (
+                                            <View style={styles.voiceMessageContainer}>
+                                                <TouchableOpacity 
+                                                    style={styles.voicePlayButton}
+                                                    onPress={() => msg.mediaUrl && playVoiceMessage(msg.mediaUrl)}
+                                                >
+                                                    <Ionicons 
+                                                        name={isPlaying && sound ? "pause" : "play"} 
+                                                        size={20} 
+                                                        color={isMe ? "#fff" : "#2196F3"} 
+                                                    />
+                                                </TouchableOpacity>
+                                                <View style={styles.voiceWaveform}>
+                                                    <View style={[styles.voiceBar, { height: 8 }]} />
+                                                    <View style={[styles.voiceBar, { height: 12 }]} />
+                                                    <View style={[styles.voiceBar, { height: 6 }]} />
+                                                    <View style={[styles.voiceBar, { height: 10 }]} />
+                                                    <View style={[styles.voiceBar, { height: 4 }]} />
+                                                </View>
+                                                <Text style={[styles.voiceDuration, isMe ? styles.myText : styles.theirText]}>
+                                                    {msg.voiceDuration ? formatDuration(msg.voiceDuration) : '0:00'}
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.messageContentContainer}>
+                                                {msg.text.startsWith('Forwarded: ') && (
+                                                    <View style={styles.forwardedMessageHeader}>
+                                                        <Ionicons 
+                                                            name="arrow-forward" 
+                                                            size={14} 
+                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
+                                                        />
+                                                        <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
+                                                            Forwarded
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                                <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
+                                                    {msg.text.startsWith('Forwarded: ') ? msg.text.substring(11) : msg.text}
+                                                </Text>
+                                            </View>
+                                        )}
+                                        <Text style={[styles.msgTime, isMe ? styles.myTime : styles.theirTime]}>
+                                            {msg.time}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                        {isTyping && (
+                            <View style={[styles.messageRow, styles.messageLeft, styles.typingIndicatorContainer]}>
+                                <Image source={{ uri: friendAvatar }} style={styles.msgAvatar} />
+                                <AnimatedTypingIndicator />
+                            </View>
+                        )}
+                        {isForwarding && (
+                            <View style={[styles.messageRow, styles.messageRight]}>
+                                <View style={[styles.messageBubble, styles.myBubble, styles.forwardingBubble]}>
+                                    <Text style={[styles.messageText, styles.myText]}>
+                                        Forwarding message...
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                    </ScrollView>
+                </View>
+
+                {/* Input */}
+                <View style={styles.inputBar}>
+                    <TouchableOpacity 
+                        style={styles.iconButton}
+                        onPress={() => setShowMediaOptions(!showMediaOptions)}
+                    >
+                        <Ionicons name="add" size={26} color="#007AFF" />
+                    </TouchableOpacity>
+                    <TextInput
+                        style={styles.input}
+                        placeholder="Type a message..."
+                        placeholderTextColor="#888"
+                        value={message}
+                        onChangeText={handleTyping}
+                        multiline
+                    />
+                    {isRecording ? (
+                        <View style={styles.recordingContainer}>
+                            <View style={styles.recordingIndicator}>
+                                <View style={styles.recordingDot} />
+                            </View>
+                            <Text style={styles.recordingText}>{formatDuration(recordingDuration)}</Text>
+                            <TouchableOpacity
+                                style={styles.recordingButton}
+                                onPress={handleVoiceRecording}
+                            >
+                                <Ionicons name="stop" size={22} color="#fff" />
+                            </TouchableOpacity>
                         </View>
                     ) : (
-                        messages.map((msg) => {
-                            const isMe = msg.senderId === currentUserId;
-                            console.log(msg.senderId , currentUserId ,isMe , "kkk")
-                            return (
-                                <View 
-                                    key={msg.id} 
-                                    style={[
-                                        styles.messageRow,
-                                        isMe ? styles.messageRowRight : styles.messageRowLeft
-                                    ]}
-                                >
-                                    {/* Avatar for received messages (left side) */}
-                                    {!isMe && friendAvatar && (
-                                        <Image
-                                            source={{ uri: friendAvatar }}
-                                            style={styles.messageAvatar}
-                                        />
-                                    )}
-
-                                    {/* Message Bubble */}
-                                    <View
-                                        style={[
-                                            styles.messageBubble,
-                                            isMe ? styles.sentBubble : styles.receivedBubble,
-                                        ]}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.messageText,
-                                                isMe ? styles.sentText : styles.receivedText,
-                                            ]}
-                                        >
-                                            {msg.text}
-                                        </Text>
-                                        <View style={styles.messageFooter}>
-                                            <Text
-                                                style={[
-                                                    styles.messageTime,
-                                                    isMe ? styles.sentTime : styles.receivedTime,
-                                                ]}
-                                            >
-                                                {msg.time}
-                                            </Text>
-                                            {isMe && (
-                                                <Ionicons
-                                                    name={msg.isRead ? "checkmark-done" : "checkmark"}
-                                                    size={16}
-                                                    color={msg.isRead ? "#4CAF50" : "#fff"}
-                                                    style={styles.checkmark}
-                                                />
-                                            )}
-                                        </View>
-                                    </View>
-                                </View>
-                            );
-                        })
+                        <TouchableOpacity
+                            style={[styles.sendButton, !message.trim() && { opacity: 0.5 }]}
+                            onPress={handleSend}
+                            disabled={!message.trim()}
+                        >
+                            <Ionicons name="send" size={22} color="#fff" />
+                        </TouchableOpacity>
                     )}
+                </View>
 
-                    {isTyping && (
-                        <View style={[styles.messageRow, styles.messageRowLeft]}>
-                            <Image
-                                source={{ uri: friendAvatar }}
-                                style={styles.messageAvatar}
-                            />
-                            <View style={styles.typingIndicator}>
-                                <View style={styles.typingDot} />
-                                <View style={styles.typingDot} />
-                                <View style={styles.typingDot} />
+                {/* Media Options Modal */}
+                <Modal
+                    visible={showMediaOptions}
+                    transparent={true}
+                    animationType="slide"
+                    onRequestClose={() => setShowMediaOptions(false)}
+                >
+                    <TouchableOpacity 
+                        style={styles.mediaModalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setShowMediaOptions(false)}
+                    >
+                        <View style={styles.mediaOptionsContainer}>
+                            <TouchableOpacity 
+                                style={styles.mediaOption}
+                                onPress={handleImageSelection}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.mediaOptionIcon, { backgroundColor: '#4CAF50' }]}>
+                                    <Ionicons name="image" size={24} color="#fff" />
+                                </View>
+                                <Text style={styles.mediaOptionText}>Photo</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity 
+                                style={styles.mediaOption}
+                                onPress={handleVoiceRecording}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.mediaOptionIcon, { backgroundColor: '#FF9800' }]}>
+                                    <Ionicons name="mic" size={24} color="#fff" />
+                                </View>
+                                <Text style={styles.mediaOptionText}>Voice</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </TouchableOpacity>
+                </Modal>
+
+                {/* Image Preview Modal */}
+                <Modal
+                    visible={showImagePreview}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setShowImagePreview(false)}
+                >
+                    <View style={styles.imagePreviewOverlay}>
+                        <View style={styles.imagePreviewContainer}>
+                            {selectedImage && (
+                                <Image 
+                                    source={{ uri: selectedImage }} 
+                                    style={styles.previewImage}
+                                    resizeMode="contain"
+                                />
+                            )}
+                            <View style={styles.imagePreviewActions}>
+                                <TouchableOpacity 
+                                    style={styles.previewCancelButton}
+                                    onPress={() => {
+                                        setSelectedImage(null);
+                                        setShowImagePreview(false);
+                                    }}
+                                >
+                                    <Ionicons name="close" size={24} color="#fff" />
+                                </TouchableOpacity>
+                                <TouchableOpacity 
+                                    style={styles.previewSendButton}
+                                    onPress={handleSendImage}
+                                >
+                                    <Ionicons name="send" size={24} color="#fff" />
+                                </TouchableOpacity>
                             </View>
                         </View>
-                    )}
-                </ScrollView>
-
-                {/* Input Section */}
-                <View style={styles.inputContainer}>
-                    <TouchableOpacity style={styles.attachButton}>
-                        <Ionicons name="add" size={28} color="#00A8E8" />
-                    </TouchableOpacity>
-
-                    <View style={styles.inputWrapper}>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Type a message..."
-                            placeholderTextColor="#999"
-                            value={message}
-                            onChangeText={handleTyping}
-                            multiline
-                        />
                     </View>
-
-                    <TouchableOpacity
-                        style={[
-                            styles.sendButton,
-                            !message.trim() && styles.sendButtonDisabled,
-                        ]}
-                        onPress={handleSend}
-                        disabled={!message.trim()}
-                    >
-                        <Ionicons
-                            name="send"
-                            size={24}
-                            color={message.trim() ? '#fff' : '#ccc'}
-                        />
-                    </TouchableOpacity>
-                </View>
+                </Modal>
             </KeyboardAvoidingView>
+
+            {/* Forward Message Modal */}
+            <Modal
+                visible={showForwardModal}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={closeForwardModal}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.forwardModal}>
+                        <View style={styles.forwardModalHeader}>
+                            <Text style={styles.forwardModalTitle}>Forward Message</Text>
+                            <TouchableOpacity onPress={closeForwardModal}>
+                                <Ionicons name="close" size={24} color="#333" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {selectedMessage && (
+                            <View style={styles.selectedMessagePreview}>
+                                <View style={styles.messagePreviewHeader}>
+                                    <Text style={styles.messagePreviewLabel}>Message to forward:</Text>
+                                    {selectedMessage.text.startsWith('Forwarded: ') && (
+                                        <View style={styles.forwardedBadge}>
+                                            <Ionicons name="arrow-forward" size={12} color="#fff" />
+                                            <Text style={styles.forwardedBadgeText}>Already Forwarded</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <Text style={styles.selectedMessageText} numberOfLines={2}>
+                                    "{selectedMessage.text}"
+                                </Text>
+                            </View>
+                        )}
+
+                        {forwardLoading ? (
+                            <View style={styles.forwardLoadingContainer}>
+                                <ActivityIndicator size="large" color="#009BFF" />
+                                <Text style={styles.forwardLoadingText}>Loading contacts...</Text>
+                            </View>
+                        ) : (
+                            <FlatList
+                                data={[...forwardContacts, ...forwardGroups]}
+                                keyExtractor={(item) => item.id}
+                                renderItem={({ item }) => (
+                                    <TouchableOpacity
+                                        style={styles.forwardContactItem}
+                                        onPress={() => handleForwardMessage(item)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={styles.forwardContactAvatar}>
+                                            <View style={[styles.forwardAvatarPlaceholder, { backgroundColor: item.bgColor }]}>
+                                                <Text style={styles.forwardAvatarText}>{item.initial}</Text>
+                                            </View>
+                                        </View>
+                                        <View style={styles.forwardContactInfo}>
+                                            <Text style={styles.forwardContactName}>{item.name}</Text>
+                                            <Text style={styles.forwardContactType}>
+                                                {item.type === 'friend' ? 'Personal Chat' : 'Group Chat'}
+                                            </Text>
+                                        </View>
+                                        <Ionicons name="arrow-forward" size={20} color="#009BFF" />
+                                    </TouchableOpacity>
+                                )}
+                                ListEmptyComponent={() => (
+                                    <View style={styles.forwardEmptyContainer}>
+                                        <Ionicons name="people-outline" size={48} color="#ccc" />
+                                        <Text style={styles.forwardEmptyText}>No contacts available</Text>
+                                    </View>
+                                )}
+                                contentContainerStyle={styles.forwardListContent}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 50,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-    },
-    backButton: {
-        padding: 8,
-    },
-    headerCenter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginHorizontal: 12,
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-    },
-    headerInfo: {
-        marginLeft: 12,
+    container: { flex: 1, backgroundColor: '#E9F0F7' },
+    loadingWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    keyboardAvoidingContainer: { 
         flex: 1,
     },
-    headerName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#000',
+    chatContainer: { 
+        flex: 1, 
+        marginTop: 10, // Space between header and chat
+        backgroundColor: '#E9F0F7',
+        paddingBottom: 10, // Add padding to ensure typing indicator is visible
     },
-    headerStatus: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 2,
+
+     header: {
+         flexDirection: 'row',
+         alignItems: 'center',
+         justifyContent: 'space-between',
+         paddingVertical: 10,
+         paddingHorizontal: 0,
+         marginHorizontal: 10,
+         marginTop: 20, // Top margin for status bar
+         backgroundColor: '#fff',
+         borderRadius: 45,
+         elevation: 4,
+         shadowColor: '#000',
+         shadowOffset: { width: 0, height: 3 },
+         shadowOpacity: 0.15,
+         shadowRadius: 6,
+         zIndex: 1000, // Ensure header stays on top
+     },
+     backButton: {
+         padding: 6,
+         borderRadius: 16,
+         backgroundColor: 'rgba(255,255,255,0.2)',
+         marginLeft: 12,
+     },
+     headerCenter: { 
+         flexDirection: 'row', 
+         alignItems: 'center', 
+         flex: 1, 
+         marginLeft: 8 
+     },
+     headerIcons: { 
+         flexDirection: 'row', 
+         gap: 6,
+         marginRight: 12,
+     },
+     headerIconButton: {
+         padding: 6,
+         borderRadius: 12,
+         backgroundColor: 'rgba(255,255,255,0.2)',
+     },
+     userInfo: {
+         flex: 1,
+         marginLeft: 8,
+     },
+     avatar: { width: 32, height: 32, borderRadius: 16 },
+     friendName: { fontSize: 14, fontWeight: '600', color: 'black' },
+     statusText: { fontSize: 11, color: 'gray' },
+
+    chatScroll: { 
+        flexGrow: 1,
+        paddingVertical: 12, 
+        paddingHorizontal: 10,
+        paddingBottom: 20, // Extra padding at bottom
     },
-    headerRight: {
-        flexDirection: 'row',
-        gap: 8,
+    messageRow: { flexDirection: 'row', marginVertical: 6, alignItems: 'flex-end' },
+    messageLeft: { justifyContent: 'flex-start' },
+    messageRight: { justifyContent: 'flex-end', alignSelf: 'flex-end' },
+    typingIndicatorContainer: { 
+        marginBottom: 0, // Extra margin to ensure typing indicator is visible above input box
     },
-    headerIcon: {
-        padding: 8,
-    },
-    messagesContainer: {
-        flex: 1,
-        backgroundColor: '#F8F9FA',
-    },
-    messagesContent: {
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-    },
-    emptyChat: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        opacity: 0.5,
-        paddingTop: 100,
-    },
-    emptyText: {
-        marginTop: 12,
-        fontSize: 16,
-        color: '#999',
-    },
-    messageRow: {
-        flexDirection: 'row',
-        marginBottom: 12,
-        paddingHorizontal: 4,
-    },
-    messageRowLeft: {
-        justifyContent: 'flex-start',
-        alignItems: 'flex-end',
-    },
-    messageRowRight: {
-        justifyContent: 'flex-end',
-        alignItems: 'flex-end',
-    },
-    messageAvatar: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        marginRight: 8,
-    },
+    msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+
     messageBubble: {
         maxWidth: '75%',
+        borderRadius: 20,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        shadowColor: '#000',
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    myBubble: { backgroundColor: '#2196F3', borderBottomRightRadius: 4 },
+    theirBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 4 },
+    forwardingBubble: { backgroundColor: '#FF9800', opacity: 0.8 },
+    messageText: { fontSize: 15 },
+    myText: { color: '#fff' },
+    theirText: { color: '#333' },
+    msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+    myTime: { color: 'rgba(255,255,255,0.7)' },
+    theirTime: { color: '#999' },
+
+    typingIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f0f0f0',
         borderRadius: 18,
         paddingHorizontal: 16,
         paddingVertical: 10,
+        maxWidth: '80%',
         shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 1,
-        },
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: 2,
     },
-    sentBubble: {
-        backgroundColor: '#00A8E8',
-        borderBottomRightRadius: 4,
+    typingTextContainer: {
+        marginRight: 8,
     },
-    receivedBubble: {
-        backgroundColor: '#fff',
-        borderBottomLeftRadius: 4,
+    typingText: {
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '500',
     },
-    messageText: {
-        fontSize: 16,
-        lineHeight: 20,
-    },
-    sentText: {
-        color: '#fff',
-    },
-    receivedText: {
-        color: '#000',
-    },
-    messageFooter: {
+    dotsContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 4,
-        gap: 4,
     },
-    messageTime: {
-        fontSize: 11,
+    animatedDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: '#999',
+        marginHorizontal: 2,
     },
-    sentTime: {
-        color: 'rgba(255, 255, 255, 0.8)',
-    },
-    receivedTime: {
-        color: '#999',
-    },
-    checkmark: {
-        marginLeft: 2,
-    },
-    typingIndicator: {
+
+    inputBar: {
         flexDirection: 'row',
-        gap: 4,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        alignItems: 'center',
         backgroundColor: '#fff',
-        borderRadius: 18,
-        borderBottomLeftRadius: 4,
+        marginHorizontal: 10,
+        marginBottom: 10,
+        borderRadius: 25,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
         shadowColor: '#000',
-        shadowOffset: {
-            width: 0,
-            height: 1,
-        },
-        shadowOpacity: 0.1,
-        shadowRadius: 2,
-        elevation: 2,
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 3,
     },
-    typingDot: {
+    iconButton: { paddingHorizontal: 6 },
+    input: {
+        flex: 1,
+        fontSize: 15,
+        maxHeight: 100,
+        paddingHorizontal: 10,
+        color: '#000',
+    },
+    sendButton: {
+        backgroundColor: '#007AFF',
+        borderRadius: 20,
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    recordingButton: {
+        backgroundColor: '#FF5722',
+        borderRadius: 20,
+        width: 40,
+        height: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    recordingContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FF5722',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+    },
+    recordingIndicator: {
+        marginRight: 8,
+    },
+    recordingDot: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#999',
-    },
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'flex-end',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        gap: 8,
-        borderTopWidth: 1,
-        borderTopColor: '#f0f0f0',
         backgroundColor: '#fff',
     },
-    attachButton: {
-        padding: 8,
+    recordingText: {
+        color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+        marginRight: 8,
+        minWidth: 40,
+    },
+
+    // Forwarded message styles
+    messageContentContainer: {
+        flex: 1,
+    },
+    forwardedMessageHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 4,
+    },
+    forwardedLabel: {
+        fontSize: 12,
+        fontWeight: '500',
+        marginLeft: 4,
+    },
+    myForwardedLabel: {
+        color: 'rgba(255,255,255,0.7)',
+    },
+    theirForwardedLabel: {
+        color: '#666',
+    },
+
+    // Media message styles
+    imageMessageContainer: {
+        position: 'relative',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    messageImage: {
+        width: 200,
+        height: 200,
+        borderRadius: 12,
+    },
+    imageOverlay: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        borderRadius: 12,
+        padding: 4,
+    },
+    voiceMessageContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        borderRadius: 20,
+        minWidth: 120,
+    },
+    voicePlayButton: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 8,
+    },
+    voiceWaveform: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginRight: 8,
+        gap: 2,
+    },
+    voiceBar: {
+        width: 3,
+        backgroundColor: 'rgba(255,255,255,0.6)',
+        borderRadius: 2,
+    },
+    voiceDuration: {
+        fontSize: 12,
+        fontWeight: '500',
+    },
+
+    // Media options modal styles
+    mediaModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    mediaOptionsContainer: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        paddingHorizontal: 20,
+        paddingVertical: 30,
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 5,
+    },
+    mediaOption: {
+        alignItems: 'center',
+        flex: 1,
+    },
+    mediaOptionIcon: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 8,
+    },
+    mediaOptionText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#333',
+    },
+
+    // Image preview modal styles
+    imagePreviewOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    inputWrapper: {
+    imagePreviewContainer: {
+        width: Dimensions.get('window').width * 0.9,
+        height: Dimensions.get('window').height * 0.7,
+        position: 'relative',
+    },
+    previewImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 12,
+    },
+    imagePreviewActions: {
+        position: 'absolute',
+        bottom: 20,
+        left: 0,
+        right: 0,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingHorizontal: 20,
+    },
+    previewCancelButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    previewSendButton: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: '#007AFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarContainer: {
+         position: 'relative',
+    },
+    avatarPlaceholder: {
+         width: 32,
+         height: 32,
+         borderRadius: 16,
+         alignItems: 'center',
+         justifyContent: 'center',
+    },
+    avatarText: {
+         fontSize: 14,
+         fontWeight: '600',
+         color: '#fff',
+    },
+    activeIndicator: {
+         position: 'absolute',
+         bottom: 2,
+         right: 2,
+         width: 12,
+         height: 12,
+         borderRadius: 6,
+         backgroundColor: '#4CAF50',
+         borderWidth: 2,
+         borderColor: '#fff',
+    },
+    
+    // Forward Modal Styles
+    modalOverlay: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
-        borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'flex-end',
+    },
+    forwardModal: {
+        backgroundColor: '#fff',
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        maxHeight: '80%',
+        minHeight: '50%',
+    },
+    forwardModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E0E0E0',
+    },
+    forwardModalTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+    },
+    selectedMessagePreview: {
+        backgroundColor: '#F5F5F5',
+        marginHorizontal: 20,
+        marginVertical: 12,
         paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 12,
+        borderLeftWidth: 4,
+        borderLeftColor: '#009BFF',
+    },
+    messagePreviewHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    messagePreviewLabel: {
+        fontSize: 12,
+        color: '#666',
+        fontWeight: '600',
+    },
+    forwardedBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FF9800',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        gap: 4,
+    },
+    forwardedBadgeText: {
+        fontSize: 10,
+        color: '#fff',
+        fontWeight: '600',
+    },
+    selectedMessageText: {
+        fontSize: 14,
+        color: '#666',
+        fontStyle: 'italic',
+    },
+    forwardLoadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 40,
+    },
+    forwardLoadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+    },
+    forwardListContent: {
         paddingVertical: 8,
-        maxHeight: 100,
     },
-    input: {
-        fontSize: 16,
-        color: '#000',
-        maxHeight: 80,
+    forwardContactItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
     },
-    sendButton: {
-        backgroundColor: '#00A8E8',
+    forwardContactAvatar: {
+        marginRight: 12,
+    },
+    forwardAvatarPlaceholder: {
         width: 44,
         height: 44,
         borderRadius: 22,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    forwardAvatarText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#fff',
+    },
+    forwardContactInfo: {
+        flex: 1,
+    },
+    forwardContactName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 2,
+    },
+    forwardContactType: {
+        fontSize: 12,
+        color: '#666',
+    },
+    forwardEmptyContainer: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        paddingVertical: 60,
     },
-    sendButtonDisabled: {
-        backgroundColor: '#E0E0E0',
+    forwardEmptyText: {
+        fontSize: 16,
+        color: '#999',
+        marginTop: 12,
     },
 });

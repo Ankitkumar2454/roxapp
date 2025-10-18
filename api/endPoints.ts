@@ -3,7 +3,7 @@ const ENDPOINTS = {
     login: "/api/auth/login",
     create: "/api/users",
     resetPassword: "/api/auth/reset-mpin",
-    profile:"/api/auth/profile"
+    profile: "/api/auth/profile",
   },
   users: {
     getAll: "/api/users",
@@ -14,20 +14,25 @@ const ENDPOINTS = {
     getPending: "/api/friends/requests/pending",
     accept: "/api/friends/request/accept",
     reject: "/api/friends/request/reject",
-    sent : "/api/friends/requests/sent"
+    sent: "/api/friends/requests/sent",
   },
-  groups : {
-    get:"/api/groups/",
-    create:"/api/groups/",
-    removeAdmin : "",
-    removeMember : "/api/groups/members/remove",
-    addMember : "/api/groups/members/add",
-    makeAdmin:"/api/groups/members/promote",
-    leaveGroup:"/api/groups/"
+  groups: {
+    get: "/api/groups/",
+    create: "/api/groups/",
+    removeAdmin: "",
+    removeMember: "/api/groups/members/remove",
+    addMember: "/api/groups/members/add",
+    makeAdmin: "/api/groups/members/promote",
+    leaveGroup: "/api/groups/",
   },
-  chat :{
-    previous_message : "api/messages/messages"
-  }
+  chat: {
+    previous_message: "api/messages/messages",
+  },
+  socket: "ws://polobet247.in",
+  whatsappchats: {
+    getAllChats: "/api/whatsapp-messages/conversations",
+    getChatHistory:"/api/whatsapp-messages/history"
+  },
 };
 
 export default ENDPOINTS;
