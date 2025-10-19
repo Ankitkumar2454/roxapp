@@ -3,13 +3,13 @@ import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   RefreshControl,
   StyleSheet,
   Text,
@@ -18,7 +18,7 @@ import {
   View
 } from 'react-native';
 import { io, Socket } from 'socket.io-client';
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // Updated types based on new API response
 interface ApiConversation {
   _id: string;
@@ -94,13 +94,40 @@ export default function SupportScreen() {
   const reconnectTimeout = useRef<number | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
-
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const navigation = useNavigation();
   const showMessage = (type: 'success' | 'error' | 'info', message: string) => {
     setMessageType(type);
     setMessageText(message);
     setMessageVisible(true);
   };
+  useEffect(() => {
+    if (selectedConversation) {
+      // Hide tab bar when chat is open
+      navigation.setOptions({
+        tabBarStyle: { display: 'none' }
+      });
+    } else {
+      // Show tab bar when on conversation list
+      navigation.setOptions({
+        tabBarStyle: { display: 'flex' }
+      });
+    }
+  }, [selectedConversation, navigation]);
 
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
   const formatTimestamp = (timestamp: string): string => {
     const now = new Date();
     const msgDate = new Date(timestamp);
@@ -649,51 +676,67 @@ export default function SupportScreen() {
     );
   }
   return (
-
     <View style={styles.container}>
       {selectedConversation ? (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={130}
-          style={{ flex: 1 }}
+        <View style={{ flex: 1 }}
         >
+          {/* Chat Header */}
           <View style={styles.chatHeader}>
-            <TouchableOpacity onPress={() => {
-              setSelectedConversation(null);
-              setMessages([]);
-            }}>
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedConversation(null);
+                setMessages([]);
+              }}
+            >
               <Ionicons name="chevron-back" size={24} color="#000" />
             </TouchableOpacity>
+
             <View style={styles.chatHeaderContent}>
               <Text style={styles.chatHeaderName}>{selectedConversation.customerName}</Text>
               <Text style={styles.chatHeaderPhone}>
                 {maskPhoneNumber(selectedConversation.phoneNumber)}
               </Text>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedConversation.status) + '20' }]}>
+
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: getStatusColor(selectedConversation.status) + '20' },
+              ]}
+            >
               <Ionicons
                 name={getStatusIcon(selectedConversation.status) as any}
                 size={14}
                 color={getStatusColor(selectedConversation.status)}
               />
-              <Text style={[styles.statusText, { color: getStatusColor(selectedConversation.status) }]}>
-                {selectedConversation.status.charAt(0).toUpperCase() + selectedConversation.status.slice(1)}
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: getStatusColor(selectedConversation.status) },
+                ]}
+              >
+                {selectedConversation.status.charAt(0).toUpperCase() +
+                  selectedConversation.status.slice(1)}
               </Text>
             </View>
           </View>
+
+          {/* Chat Body */}
           {loadingMessages ? (
             <View style={styles.loadingMessagesContainer}>
               <ActivityIndicator size="large" color="#009BFF" />
               <Text style={styles.loadingText}>Loading messages...</Text>
             </View>
-          ) : (<>
+          ) : (
             <FlatList
               ref={flatListRef}
               data={messages}
               renderItem={renderMessageBubble}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.messagesList}
-              onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+              onContentSizeChange={() =>
+                flatListRef.current?.scrollToEnd({ animated: true })
+              }
               onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
               ListEmptyComponent={() => (
                 <View style={styles.noMessagesContainer}>
@@ -701,6 +744,10 @@ export default function SupportScreen() {
                 </View>
               )}
             />
+          )}
+
+          {/* Input Container */}
+          <View style={styles.inputWrapper}>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.textInput}
@@ -712,12 +759,11 @@ export default function SupportScreen() {
                 editable={!sendingMessage}
                 onSubmitEditing={handleSendMessage}
                 blurOnSubmit={false}
-
               />
               <TouchableOpacity
                 style={[
                   styles.sendButton,
-                  (sendingMessage || !inputValue.trim()) && styles.sendButtonDisabled
+                  (sendingMessage || !inputValue.trim()) && styles.sendButtonDisabled,
                 ]}
                 onPress={handleSendMessage}
                 disabled={sendingMessage || !inputValue.trim()}
@@ -729,53 +775,48 @@ export default function SupportScreen() {
                 )}
               </TouchableOpacity>
             </View>
-
-
-          </>
-          )}
-
-
-        </KeyboardAvoidingView>
-
-      ) :
-        (
-          <View style={styles.mainContainer}>
-            <View style={styles.listHeader}>
-              {/* <Text style={styles.headerTitle}>Support Messages</Text> */}
-              <View style={styles.searchContainer}>
-                <Ionicons name="search" size={18} color="#999" />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search by name or number..."
-                  value={searchTerm}
-                  onChangeText={setSearchTerm}
-                />
-                {searchTerm.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearchTerm('')}>
-                    <Ionicons name="close-circle" size={20} color="#999" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            <FlatList
-              data={filteredConversations}
-              renderItem={renderConversationItem}
-              keyExtractor={(item) => item.id}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              ListEmptyComponent={ListEmptyComponent}
-              refreshControl={
-                <RefreshControl
-                  refreshing={refreshing}
-                  onRefresh={onRefresh}
-                  colors={['#009BFF']}
-                  tintColor="#009BFF"
-                />
-              }
-              contentContainerStyle={filteredConversations.length === 0 ? styles.emptyListContent : undefined}
-            />
           </View>
-        )}
+        </View>
+      ) : (
+        // Conversation List
+        <View style={styles.mainContainer}>
+          <View style={styles.listHeader}>
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color="#999" />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search by name or number..."
+                value={searchTerm}
+                onChangeText={setSearchTerm}
+              />
+              {searchTerm.length > 0 && (
+                <TouchableOpacity onPress={() => setSearchTerm('')}>
+                  <Ionicons name="close-circle" size={20} color="#999" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <FlatList
+            data={filteredConversations}
+            renderItem={renderConversationItem}
+            keyExtractor={(item) => item.id}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+            ListEmptyComponent={ListEmptyComponent}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={['#009BFF']}
+                tintColor="#009BFF"
+              />
+            }
+            contentContainerStyle={
+              filteredConversations.length === 0 ? styles.emptyListContent : undefined
+            }
+          />
+        </View>
+      )}
 
       <GlobalMessage
         type={messageType}
@@ -784,8 +825,8 @@ export default function SupportScreen() {
         onClose={() => setMessageVisible(false)}
       />
     </View>
-
   );
+
 }
 
 const styles = StyleSheet.create({
@@ -800,31 +841,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 14,
+    marginTop: screenHeight * 0.01,
+    fontSize: screenWidth * 0.035,
     color: '#666',
   },
   mainContainer: {
     flex: 1,
   },
   listHeader: {
-    padding: 16,
+    padding: screenWidth * 0.04,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: screenWidth * 0.06,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: screenHeight * 0.015,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    height: 50,
+    borderRadius: screenWidth * 0.1,
+    paddingHorizontal: screenWidth * 0.04,
+    height: screenHeight * 0.065,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -833,30 +874,30 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
+    marginLeft: screenWidth * 0.03,
+    fontSize: screenWidth * 0.04,
     color: '#333',
   },
   conversationItem: {
     flexDirection: 'row',
-    padding: 16,
+    padding: screenWidth * 0.04,
     backgroundColor: '#fff',
   },
   selectedConversation: {
     backgroundColor: '#f0f8ff',
   },
   avatarPlaceholder: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: screenWidth * 0.12,
+    height: screenWidth * 0.12,
+    borderRadius: (screenWidth * 0.12) / 2,
     backgroundColor: '#009BFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: screenWidth * 0.03,
   },
   avatarText: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: screenWidth * 0.05,
     fontWeight: 'bold',
   },
   conversationContent: {
@@ -865,7 +906,7 @@ const styles = StyleSheet.create({
   conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: screenHeight * 0.005,
   },
   nameContainer: {
     flexDirection: 'row',
@@ -873,73 +914,73 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   customerName: {
-    fontSize: 16,
+    fontSize: screenWidth * 0.04,
     fontWeight: '600',
-    marginRight: 8,
+    marginRight: screenWidth * 0.02,
   },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingHorizontal: screenWidth * 0.02,
+    paddingVertical: screenHeight * 0.003,
+    borderRadius: screenWidth * 0.03,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: screenWidth * 0.025,
     fontWeight: '500',
-    marginLeft: 4,
+    marginLeft: screenWidth * 0.01,
   },
   timeAndUnread: {
     alignItems: 'flex-end',
   },
   time: {
-    fontSize: 12,
+    fontSize: screenWidth * 0.03,
     color: '#666',
   },
   unreadBadge: {
     backgroundColor: '#009BFF',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
-    minWidth: 20,
+    borderRadius: screenWidth * 0.025,
+    paddingHorizontal: screenWidth * 0.015,
+    paddingVertical: screenHeight * 0.0025,
+    marginTop: screenHeight * 0.002,
+    minWidth: screenWidth * 0.05,
     alignItems: 'center',
   },
   unreadText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: screenWidth * 0.025,
     fontWeight: 'bold',
   },
   phoneNumber: {
-    fontSize: 12,
+    fontSize: screenWidth * 0.03,
     color: '#666',
-    marginBottom: 4,
+    marginBottom: screenHeight * 0.003,
   },
   lastMessage: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.035,
     color: '#999',
   },
   separator: {
     height: 1,
     backgroundColor: '#e0e0e0',
-    marginLeft: 78,
+    marginLeft: screenWidth * 0.2,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: screenHeight * 0.08,
   },
   emptyText: {
-    fontSize: 18,
+    fontSize: screenWidth * 0.045,
     fontWeight: '600',
     color: '#666',
-    marginTop: 16,
+    marginTop: screenHeight * 0.02,
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.035,
     color: '#999',
-    marginTop: 8,
+    marginTop: screenHeight * 0.01,
   },
   emptyListContent: {
     flex: 1,
@@ -950,23 +991,23 @@ const styles = StyleSheet.create({
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: screenWidth * 0.04,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
   chatHeaderContent: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: screenWidth * 0.03,
   },
   chatHeaderName: {
-    fontSize: 18,
+    fontSize: screenWidth * 0.045,
     fontWeight: '600',
   },
   chatHeaderPhone: {
-    fontSize: 12,
+    fontSize: screenWidth * 0.03,
     color: '#666',
-    marginTop: 2,
+    marginTop: screenHeight * 0.005,
   },
   loadingMessagesContainer: {
     flex: 1,
@@ -974,12 +1015,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   messagesList: {
-    padding: 14,
+    padding: screenWidth * 0.035,
     flexGrow: 1,
     justifyContent: "flex-end",
+    paddingBottom: screenHeight * 0.02
   },
   messageBubbleContainer: {
-    marginVertical: 4,
+    marginVertical: screenHeight * 0.004,
     width: '100%',
   },
   supportBubble: {
@@ -990,8 +1032,8 @@ const styles = StyleSheet.create({
   },
   messageBubble: {
     maxWidth: '75%',
-    padding: 12,
-    borderRadius: 16,
+    padding: screenWidth * 0.035,
+    borderRadius: screenWidth * 0.04,
     elevation: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -1000,16 +1042,16 @@ const styles = StyleSheet.create({
   },
   supportMessage: {
     backgroundColor: '#009BFF',
-    borderBottomRightRadius: 4,
+    borderBottomRightRadius: screenWidth * 0.01,
   },
   customerMessage: {
     backgroundColor: '#f0f0f0',
-    borderBottomLeftRadius: 4,
+    borderBottomLeftRadius: screenWidth * 0.01,
   },
   messageText: {
-    fontSize: 15,
+    fontSize: screenWidth * 0.04,
     color: '#000',
-    lineHeight: 20,
+    lineHeight: screenHeight * 0.025,
   },
   supportMessageText: {
     color: '#fff',
@@ -1018,10 +1060,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 4,
+    marginTop: screenHeight * 0.003,
   },
   messageTime: {
-    fontSize: 11,
+    fontSize: screenWidth * 0.025,
     color: '#666',
   },
   supportMessageTime: {
@@ -1031,49 +1073,50 @@ const styles = StyleSheet.create({
     color: '#999',
   },
   messageStatusContainer: {
-    marginLeft: 4,
+    marginLeft: screenWidth * 0.01,
   },
   messageStatusIcon: {
-    marginLeft: 2,
+    marginLeft: screenWidth * 0.005,
   },
   noMessagesContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    paddingVertical: screenHeight * 0.08,
   },
   noMessagesText: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.035,
     color: '#999',
+  },
+  inputWrapper: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 10,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
     alignItems: 'center',
-    // marginBottom: 60
-
+    paddingHorizontal: screenWidth * 0.03,
+    paddingVertical: screenHeight * 0.013,
+    backgroundColor: '#fff',
+    // marginBottom: screenHeight * 0.1,
   },
   textInput: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-
+    borderColor: '#ddd',
+    borderRadius: screenWidth * 0.05,
+    paddingHorizontal: screenWidth * 0.04,
+    paddingVertical: screenHeight * 0.012,
+    fontSize: screenWidth * 0.04,
+    color: '#333',
+    maxHeight: screenHeight * 0.15, // Limit height for multiline
   },
   sendButton: {
-    marginLeft: 10,
-
-    borderRadius: 20,
-    padding: 10,
+    marginLeft: screenWidth * 0.025,
+    borderRadius: screenWidth * 0.05,
+    padding: screenWidth * 0.03,
     backgroundColor: '#009BFF',
-    // justifyContent: 'center',
-    // alignItems: 'center',
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',

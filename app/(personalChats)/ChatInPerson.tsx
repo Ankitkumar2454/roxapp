@@ -14,6 +14,7 @@ import {
     Easing,
     FlatList,
     Image,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -27,7 +28,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import io, { Socket } from 'socket.io-client';
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 interface Message {
     _id?: string;
     id: string;
@@ -70,7 +71,7 @@ export default function ChatMessageScreen() {
     const [isTyping, setIsTyping] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [currentUserId, setCurrentUserId] = useState('');
-    
+
     // Forward message states
     const [showForwardModal, setShowForwardModal] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -78,14 +79,14 @@ export default function ChatMessageScreen() {
     const [forwardGroups, setForwardGroups] = useState<ForwardContact[]>([]);
     const [forwardLoading, setForwardLoading] = useState(false);
     const [isForwarding, setIsForwarding] = useState(false);
-    
+
     // Media features states
     const [showMediaOptions, setShowMediaOptions] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [showImagePreview, setShowImagePreview] = useState(false);
-    
+
     // Audio recording states
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [recordingUri, setRecordingUri] = useState<string | null>(null);
@@ -105,6 +106,22 @@ export default function ChatMessageScreen() {
     const friendName = params.friendName as string;
     const friendAvatar = params.friendAvatar as string;
     const forwardMessage = params.forwardMessage as string;
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+
+    useEffect(() => {
+        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+            setKeyboardVisible(true);
+        });
+        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
 
     const getRandomColor = () => {
         const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
@@ -243,7 +260,7 @@ export default function ChatMessageScreen() {
     const fetchForwardContacts = async () => {
         try {
             setForwardLoading(true);
-            
+
             // Fetch friends
             const friendsResponse = await api.get(ENDPOINTS.friends.getAll);
             if (friendsResponse.data.success && friendsResponse.data.data) {
@@ -289,12 +306,12 @@ export default function ChatMessageScreen() {
             // Use utility function to handle forwarded message text
             const forwardText = getForwardText(selectedMessage.text);
             const isAlreadyForwarded = selectedMessage.text.startsWith('Forwarded: ');
-            
+
             console.log('Forwarding to:', contact.name, 'Type:', contact.type);
             console.log('Original message:', selectedMessage.text);
             console.log('Is already forwarded:', isAlreadyForwarded);
             console.log('Forward text:', forwardText);
-            
+
             if (contact.type === 'friend') {
                 // Forward to personal chat
                 console.log('Navigating to personal chat with:', contact.id);
@@ -319,7 +336,7 @@ export default function ChatMessageScreen() {
                     }
                 });
             }
-            
+
             setShowForwardModal(false);
             setSelectedMessage(null);
         } catch (error) {
@@ -358,11 +375,11 @@ export default function ChatMessageScreen() {
             const { recording } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
-            
+
             setRecording(recording);
             setIsRecording(true);
             setRecordingDuration(0);
-            
+
             // Start duration timer
             recordingIntervalRef.current = setInterval(() => {
                 setRecordingDuration(prev => prev + 1);
@@ -390,7 +407,7 @@ export default function ChatMessageScreen() {
             setRecording(null);
 
             console.log('Recording stopped and stored at', uri);
-            
+
             // Auto-send the voice message if duration > 1 second
             if (recordingDuration > 0) {
                 handleSendVoice(uri!, recordingDuration);
@@ -428,7 +445,7 @@ export default function ChatMessageScreen() {
             setSelectedImage(null);
             setShowImagePreview(false);
             scrollToEnd();
-            
+
             // TODO: Send image to backend
             console.log('Sending image:', selectedImage);
         }
@@ -464,7 +481,7 @@ export default function ChatMessageScreen() {
                 if (status.isLoaded) {
                     setPlaybackPosition(status.positionMillis || 0);
                     setPlaybackDuration(status.durationMillis || 0);
-                    
+
                     if (status.didJustFinish) {
                         setIsPlaying(false);
                         setSound(null);
@@ -496,7 +513,7 @@ export default function ChatMessageScreen() {
             };
             setMessages((prev) => [...prev, newMessage]);
             scrollToEnd();
-            
+
             // Send voice to backend via socket
             if (socketRef.current) {
                 // Convert audio file to base64 for sending
@@ -592,10 +609,10 @@ export default function ChatMessageScreen() {
                     <Text style={styles.typingText}>Typing</Text>
                 </View>
                 <View style={styles.dotsContainer}>
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.animatedDot, 
-                            { 
+                            styles.animatedDot,
+                            {
                                 opacity: dot1Anim,
                                 transform: [{
                                     scale: dot1Anim.interpolate({
@@ -604,12 +621,12 @@ export default function ChatMessageScreen() {
                                     })
                                 }]
                             }
-                        ]} 
+                        ]}
                     />
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.animatedDot, 
-                            { 
+                            styles.animatedDot,
+                            {
                                 opacity: dot2Anim,
                                 transform: [{
                                     scale: dot2Anim.interpolate({
@@ -618,12 +635,12 @@ export default function ChatMessageScreen() {
                                     })
                                 }]
                             }
-                        ]} 
+                        ]}
                     />
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.animatedDot, 
-                            { 
+                            styles.animatedDot,
+                            {
                                 opacity: dot3Anim,
                                 transform: [{
                                     scale: dot3Anim.interpolate({
@@ -632,7 +649,7 @@ export default function ChatMessageScreen() {
                                     })
                                 }]
                             }
-                        ]} 
+                        ]}
                     />
                 </View>
             </View>
@@ -680,7 +697,7 @@ export default function ChatMessageScreen() {
             forwardedMessageRef.current = forwardMessage;
             setIsForwarding(true);
             console.log('Forwarding message:', forwardMessage);
-            
+
             // Auto-send the forwarded message
             setTimeout(() => {
                 if (socketRef.current && currentUserId) {
@@ -693,7 +710,7 @@ export default function ChatMessageScreen() {
                         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                         isSent: true,
                     };
-                    
+
                     setMessages((prev) => [...prev, newMessage]);
                     setMessage('');
                     scrollToEnd();
@@ -703,7 +720,7 @@ export default function ChatMessageScreen() {
                         content: forwardMessage,
                         messageType: 'text',
                     });
-                    
+
                     console.log('Message forwarded successfully');
                     setIsForwarding(false);
                 }
@@ -723,60 +740,60 @@ export default function ChatMessageScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} />
-            
+
             {/* Header */}
             <View style={styles.header}>
-                 <TouchableOpacity 
-                     onPress={() => router.back()}
-                     style={styles.backButton}
-                     activeOpacity={0.7}
-                 >
-                     <Ionicons name="arrow-back" size={24} color="black" />
-                 </TouchableOpacity>
-                 
-                 <View style={styles.headerCenter}>
-                     <View style={styles.avatarContainer}>
-                         <View style={[styles.avatarPlaceholder, { backgroundColor: getRandomColor() }]}>
-                             <Text style={styles.avatarText}>{friendName[0]}</Text>
-                         </View>
-                     </View>
-                     <View style={styles.userInfo}>
-                         <Text style={styles.friendName}>{friendName}</Text>
-                         <Text style={styles.statusText}>
-                             {isTyping ? '✍️ Typing...' : '🟢 Online'}
-                         </Text>
-                     </View>
-                 </View>
-                 
-                 <View style={styles.headerIcons}>
-                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                         <Ionicons name="videocam-outline" size={22} color="black" />
-                     </TouchableOpacity>
-                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                         <Ionicons name="call-outline" size={22} color="black" />
-                     </TouchableOpacity>
-                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                         <Ionicons name="ellipsis-vertical" size={20} color="black" />
-                     </TouchableOpacity>
-                 </View>
-             </View>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="arrow-back" size={24} color="black" />
+                </TouchableOpacity>
+
+                <View style={styles.headerCenter}>
+                    <View style={styles.avatarContainer}>
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: getRandomColor() }]}>
+                            <Text style={styles.avatarText}>{friendName[0]}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.userInfo}>
+                        <Text style={styles.friendName}>{friendName}</Text>
+                        <Text style={styles.statusText}>
+                            {isTyping ? '✍️ Typing...' : '🟢 Online'}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.headerIcons}>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="videocam-outline" size={22} color="black" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="call-outline" size={22} color="black" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="ellipsis-vertical" size={20} color="black" />
+                    </TouchableOpacity>
+                </View>
+            </View>
 
             {/* Main Content with Keyboard Avoidance */}
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 style={styles.keyboardAvoidingContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
                 {/* Messages */}
                 <View style={styles.chatContainer}>
-                    <ScrollView 
-                        ref={scrollViewRef} 
+                    <ScrollView
+                        ref={scrollViewRef}
                         contentContainerStyle={[styles.chatScroll, { paddingBottom: 20 }]}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
                         nestedScrollEnabled={true}
                     >
-                        {                        messages.map((msg) => {
+                        {messages.map((msg) => {
                             const isMe = msg.senderId === currentUserId;
                             return (
                                 <TouchableOpacity
@@ -789,8 +806,8 @@ export default function ChatMessageScreen() {
                                     <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
                                         {msg.messageType === 'image' ? (
                                             <View style={styles.imageMessageContainer}>
-                                                <Image 
-                                                    source={{ uri: msg.mediaUrl }} 
+                                                <Image
+                                                    source={{ uri: msg.mediaUrl }}
                                                     style={styles.messageImage}
                                                     resizeMode="cover"
                                                 />
@@ -800,14 +817,14 @@ export default function ChatMessageScreen() {
                                             </View>
                                         ) : msg.messageType === 'voice' ? (
                                             <View style={styles.voiceMessageContainer}>
-                                                <TouchableOpacity 
+                                                <TouchableOpacity
                                                     style={styles.voicePlayButton}
                                                     onPress={() => msg.mediaUrl && playVoiceMessage(msg.mediaUrl)}
                                                 >
-                                                    <Ionicons 
-                                                        name={isPlaying && sound ? "pause" : "play"} 
-                                                        size={20} 
-                                                        color={isMe ? "#fff" : "#2196F3"} 
+                                                    <Ionicons
+                                                        name={isPlaying && sound ? "pause" : "play"}
+                                                        size={20}
+                                                        color={isMe ? "#fff" : "#2196F3"}
                                                     />
                                                 </TouchableOpacity>
                                                 <View style={styles.voiceWaveform}>
@@ -825,10 +842,10 @@ export default function ChatMessageScreen() {
                                             <View style={styles.messageContentContainer}>
                                                 {msg.text.startsWith('Forwarded: ') && (
                                                     <View style={styles.forwardedMessageHeader}>
-                                                        <Ionicons 
-                                                            name="arrow-forward" 
-                                                            size={14} 
-                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
+                                                        <Ionicons
+                                                            name="arrow-forward"
+                                                            size={14}
+                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"}
                                                         />
                                                         <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
                                                             Forwarded
@@ -866,8 +883,21 @@ export default function ChatMessageScreen() {
                 </View>
 
                 {/* Input */}
-                <View style={styles.inputBar}>
-                    <TouchableOpacity 
+                <View style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: '#fff',
+                    marginHorizontal: screenWidth * 0.025,
+                    marginBottom: keyboardVisible ? screenHeight * 0.045 : screenHeight * 0.015 ,
+                    borderRadius: screenWidth * 0.06,
+                    paddingHorizontal: screenWidth * 0.03,
+                    paddingVertical: screenHeight * 0.01,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.05,
+                    shadowRadius: 3,
+                    elevation: 3,
+                }}>
+                    <TouchableOpacity
                         style={styles.iconButton}
                         onPress={() => setShowMediaOptions(!showMediaOptions)}
                     >
@@ -912,13 +942,13 @@ export default function ChatMessageScreen() {
                     animationType="slide"
                     onRequestClose={() => setShowMediaOptions(false)}
                 >
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.mediaModalOverlay}
                         activeOpacity={1}
                         onPress={() => setShowMediaOptions(false)}
                     >
                         <View style={styles.mediaOptionsContainer}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.mediaOption}
                                 onPress={handleImageSelection}
                                 activeOpacity={0.7}
@@ -928,8 +958,8 @@ export default function ChatMessageScreen() {
                                 </View>
                                 <Text style={styles.mediaOptionText}>Photo</Text>
                             </TouchableOpacity>
-                            
-                            <TouchableOpacity 
+
+                            <TouchableOpacity
                                 style={styles.mediaOption}
                                 onPress={handleVoiceRecording}
                                 activeOpacity={0.7}
@@ -953,14 +983,14 @@ export default function ChatMessageScreen() {
                     <View style={styles.imagePreviewOverlay}>
                         <View style={styles.imagePreviewContainer}>
                             {selectedImage && (
-                                <Image 
-                                    source={{ uri: selectedImage }} 
+                                <Image
+                                    source={{ uri: selectedImage }}
                                     style={styles.previewImage}
                                     resizeMode="contain"
                                 />
                             )}
                             <View style={styles.imagePreviewActions}>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.previewCancelButton}
                                     onPress={() => {
                                         setSelectedImage(null);
@@ -969,7 +999,7 @@ export default function ChatMessageScreen() {
                                 >
                                     <Ionicons name="close" size={24} color="#fff" />
                                 </TouchableOpacity>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.previewSendButton}
                                     onPress={handleSendImage}
                                 >
@@ -1058,98 +1088,90 @@ export default function ChatMessageScreen() {
         </SafeAreaView>
     );
 }
-
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#E9F0F7' },
     loadingWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    keyboardAvoidingContainer: { 
+    keyboardAvoidingContainer: { flex: 1 },
+    chatContainer: {
         flex: 1,
-    },
-    chatContainer: { 
-        flex: 1, 
-        marginTop: 10, // Space between header and chat
+        marginTop: screenHeight * 0.01,
         backgroundColor: '#E9F0F7',
-        paddingBottom: 10, // Add padding to ensure typing indicator is visible
+        paddingBottom: screenHeight * 0.015,
     },
 
-     header: {
-         flexDirection: 'row',
-         alignItems: 'center',
-         justifyContent: 'space-between',
-         paddingVertical: 10,
-         paddingHorizontal: 0,
-         marginHorizontal: 10,
-         marginTop: 20, // Top margin for status bar
-         backgroundColor: '#fff',
-         borderRadius: 45,
-         elevation: 4,
-         shadowColor: '#000',
-         shadowOffset: { width: 0, height: 3 },
-         shadowOpacity: 0.15,
-         shadowRadius: 6,
-         zIndex: 1000, // Ensure header stays on top
-     },
-     backButton: {
-         padding: 6,
-         borderRadius: 16,
-         backgroundColor: 'rgba(255,255,255,0.2)',
-         marginLeft: 12,
-     },
-     headerCenter: { 
-         flexDirection: 'row', 
-         alignItems: 'center', 
-         flex: 1, 
-         marginLeft: 8 
-     },
-     headerIcons: { 
-         flexDirection: 'row', 
-         gap: 6,
-         marginRight: 12,
-     },
-     headerIconButton: {
-         padding: 6,
-         borderRadius: 12,
-         backgroundColor: 'rgba(255,255,255,0.2)',
-     },
-     userInfo: {
-         flex: 1,
-         marginLeft: 8,
-     },
-     avatar: { width: 32, height: 32, borderRadius: 16 },
-     friendName: { fontSize: 14, fontWeight: '600', color: 'black' },
-     statusText: { fontSize: 11, color: 'gray' },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: screenHeight * 0.013,
+        paddingHorizontal: screenWidth * 0.02,
+        marginHorizontal: screenWidth * 0.025,
+        marginTop: screenHeight * 0.03,
+        backgroundColor: '#fff',
+        borderRadius: screenWidth * 0.11,
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        zIndex: 1000,
+    },
+    backButton: {
+        padding: screenWidth * 0.015,
+        borderRadius: screenWidth * 0.04,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        marginLeft: screenWidth * 0.03,
+    },
+    headerCenter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginLeft: screenWidth * 0.02,
+    },
+    headerIcons: {
+        flexDirection: 'row',
+        gap: screenWidth * 0.015,
+        marginRight: screenWidth * 0.03,
+    },
+    headerIconButton: {
+        padding: screenWidth * 0.015,
+        borderRadius: screenWidth * 0.03,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
+    userInfo: { flex: 1, marginLeft: screenWidth * 0.02 },
+    avatar: { width: screenWidth * 0.08, height: screenWidth * 0.08, borderRadius: screenWidth * 0.04 },
+    friendName: { fontSize: screenWidth * 0.035, fontWeight: '600', color: 'black' },
+    statusText: { fontSize: screenWidth * 0.025, color: 'gray' },
 
-    chatScroll: { 
+    chatScroll: {
         flexGrow: 1,
-        paddingVertical: 12, 
-        paddingHorizontal: 10,
-        paddingBottom: 20, // Extra padding at bottom
+        paddingVertical: screenHeight * 0.015,
+        paddingHorizontal: screenWidth * 0.025,
+        paddingBottom: screenHeight * 0.03,
     },
-    messageRow: { flexDirection: 'row', marginVertical: 6, alignItems: 'flex-end' },
+    messageRow: { flexDirection: 'row', marginVertical: screenHeight * 0.008, alignItems: 'flex-end' },
     messageLeft: { justifyContent: 'flex-start' },
     messageRight: { justifyContent: 'flex-end', alignSelf: 'flex-end' },
-    typingIndicatorContainer: { 
-        marginBottom: 0, // Extra margin to ensure typing indicator is visible above input box
-    },
-    msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+    typingIndicatorContainer: { marginBottom: 0 },
+    msgAvatar: { width: screenWidth * 0.07, height: screenWidth * 0.07, borderRadius: screenWidth * 0.035, marginRight: screenWidth * 0.02 },
 
     messageBubble: {
         maxWidth: '75%',
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        borderRadius: screenWidth * 0.05,
+        paddingHorizontal: screenWidth * 0.035,
+        paddingVertical: screenHeight * 0.012,
         shadowColor: '#000',
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 2,
     },
-    myBubble: { backgroundColor: '#2196F3', borderBottomRightRadius: 4 },
-    theirBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 4 },
+    myBubble: { backgroundColor: '#2196F3', borderBottomRightRadius: screenWidth * 0.01 },
+    theirBubble: { backgroundColor: '#fff', borderBottomLeftRadius: screenWidth * 0.01 },
     forwardingBubble: { backgroundColor: '#FF9800', opacity: 0.8 },
-    messageText: { fontSize: 15 },
+    messageText: { fontSize: screenWidth * 0.035 },
     myText: { color: '#fff' },
     theirText: { color: '#333' },
-    msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+    msgTime: { fontSize: screenWidth * 0.025, marginTop: screenHeight * 0.003, textAlign: 'right' },
     myTime: { color: 'rgba(255,255,255,0.7)' },
     theirTime: { color: '#999' },
 
@@ -1157,9 +1179,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#f0f0f0',
-        borderRadius: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 10,
+        borderRadius: screenWidth * 0.05,
+        paddingHorizontal: screenWidth * 0.04,
+        paddingVertical: screenHeight * 0.012,
         maxWidth: '80%',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 1 },
@@ -1167,61 +1189,46 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
         elevation: 2,
     },
-    typingTextContainer: {
-        marginRight: 8,
-    },
-    typingText: {
-        fontSize: 14,
-        color: '#666',
-        fontWeight: '500',
-    },
-    dotsContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    animatedDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: '#999',
-        marginHorizontal: 2,
-    },
+    typingTextContainer: { marginRight: screenWidth * 0.02 },
+    typingText: { fontSize: screenWidth * 0.035, color: '#666', fontWeight: '500' },
+    dotsContainer: { flexDirection: 'row', alignItems: 'center' },
+    animatedDot: { width: screenWidth * 0.015, height: screenWidth * 0.015, borderRadius: screenWidth * 0.0075, backgroundColor: '#999', marginHorizontal: screenWidth * 0.005 },
 
     inputBar: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#fff',
-        marginHorizontal: 10,
-        marginBottom: 10,
-        borderRadius: 25,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
+        marginHorizontal: screenWidth * 0.025,
+        marginBottom: screenHeight * 0.015,
+        borderRadius: screenWidth * 0.06,
+        paddingHorizontal: screenWidth * 0.03,
+        paddingVertical: screenHeight * 0.01,
         shadowColor: '#000',
         shadowOpacity: 0.05,
         shadowRadius: 3,
         elevation: 3,
     },
-    iconButton: { paddingHorizontal: 6 },
+    iconButton: { paddingHorizontal: screenWidth * 0.015 },
     input: {
         flex: 1,
-        fontSize: 15,
-        maxHeight: 100,
-        paddingHorizontal: 10,
+        fontSize: screenWidth * 0.035,
+        maxHeight: screenHeight * 0.12,
+        paddingHorizontal: screenWidth * 0.025,
         color: '#000',
     },
     sendButton: {
         backgroundColor: '#007AFF',
-        borderRadius: 20,
-        width: 40,
-        height: 40,
+        borderRadius: screenWidth * 0.05,
+        width: screenWidth * 0.1,
+        height: screenWidth * 0.1,
         alignItems: 'center',
         justifyContent: 'center',
     },
     recordingButton: {
         backgroundColor: '#FF5722',
-        borderRadius: 20,
-        width: 40,
-        height: 40,
+        borderRadius: screenWidth * 0.05,
+        width: screenWidth * 0.1,
+        height: screenWidth * 0.1,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -1229,335 +1236,72 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: '#FF5722',
-        borderRadius: 20,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        borderRadius: screenWidth * 0.05,
+        paddingHorizontal: screenWidth * 0.03,
+        paddingVertical: screenHeight * 0.01,
     },
-    recordingIndicator: {
-        marginRight: 8,
-    },
-    recordingDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#fff',
-    },
-    recordingText: {
-        color: '#fff',
-        fontSize: 14,
-        fontWeight: '600',
-        marginRight: 8,
-        minWidth: 40,
-    },
+    recordingIndicator: { marginRight: screenWidth * 0.02 },
+    recordingDot: { width: screenWidth * 0.02, height: screenWidth * 0.02, borderRadius: screenWidth * 0.01, backgroundColor: '#fff' },
+    recordingText: { color: '#fff', fontSize: screenWidth * 0.035, fontWeight: '600', marginRight: screenWidth * 0.02, minWidth: screenWidth * 0.1 },
 
-    // Forwarded message styles
-    messageContentContainer: {
-        flex: 1,
-    },
-    forwardedMessageHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 4,
-    },
-    forwardedLabel: {
-        fontSize: 12,
-        fontWeight: '500',
-        marginLeft: 4,
-    },
-    myForwardedLabel: {
-        color: 'rgba(255,255,255,0.7)',
-    },
-    theirForwardedLabel: {
-        color: '#666',
-    },
+    // Forwarded message
+    messageContentContainer: { flex: 1 },
+    forwardedMessageHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: screenHeight * 0.005 },
+    forwardedLabel: { fontSize: screenWidth * 0.03, fontWeight: '500', marginLeft: screenWidth * 0.01 },
+    myForwardedLabel: { color: 'rgba(255,255,255,0.7)' },
+    theirForwardedLabel: { color: '#666' },
 
-    // Media message styles
-    imageMessageContainer: {
-        position: 'relative',
-        borderRadius: 12,
-        overflow: 'hidden',
-    },
-    messageImage: {
-        width: 200,
-        height: 200,
-        borderRadius: 12,
-    },
-    imageOverlay: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        borderRadius: 12,
-        padding: 4,
-    },
-    voiceMessageContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        backgroundColor: 'rgba(255,255,255,0.1)',
-        borderRadius: 20,
-        minWidth: 120,
-    },
-    voicePlayButton: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 8,
-    },
-    voiceWaveform: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-        marginRight: 8,
-        gap: 2,
-    },
-    voiceBar: {
-        width: 3,
-        backgroundColor: 'rgba(255,255,255,0.6)',
-        borderRadius: 2,
-    },
-    voiceDuration: {
-        fontSize: 12,
-        fontWeight: '500',
-    },
+    // Media message
+    imageMessageContainer: { position: 'relative', borderRadius: screenWidth * 0.03, overflow: 'hidden' },
+    messageImage: { width: screenWidth * 0.5, height: screenWidth * 0.5, borderRadius: screenWidth * 0.03 },
+    imageOverlay: { position: 'absolute', top: screenHeight * 0.01, right: screenWidth * 0.02, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: screenWidth * 0.03, padding: screenWidth * 0.015 },
+    voiceMessageContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: screenHeight * 0.012, paddingHorizontal: screenWidth * 0.03, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: screenWidth * 0.05, minWidth: screenWidth * 0.3 },
+    voicePlayButton: { width: screenWidth * 0.08, height: screenWidth * 0.08, borderRadius: screenWidth * 0.04, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: screenWidth * 0.02 },
+    voiceWaveform: { flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: screenWidth * 0.02, gap: screenWidth * 0.003 },
+    voiceBar: { width: screenWidth * 0.008, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: screenWidth * 0.004 },
+    voiceDuration: { fontSize: screenWidth * 0.03, fontWeight: '500' },
 
-    // Media options modal styles
-    mediaModalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    mediaOptionsContainer: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingHorizontal: 20,
-        paddingVertical: 30,
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    mediaOption: {
-        alignItems: 'center',
-        flex: 1,
-    },
-    mediaOptionIcon: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
-    },
-    mediaOptionText: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: '#333',
-    },
+    // Media options modal
+    mediaModalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+    mediaOptionsContainer: { backgroundColor: '#fff', borderTopLeftRadius: screenWidth * 0.05, borderTopRightRadius: screenWidth * 0.05, paddingHorizontal: screenWidth * 0.05, paddingVertical: screenHeight * 0.03, flexDirection: 'row', justifyContent: 'space-around', shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 8, elevation: 5 },
+    mediaOption: { alignItems: 'center', flex: 1 },
+    mediaOptionIcon: { width: screenWidth * 0.15, height: screenWidth * 0.15, borderRadius: screenWidth * 0.075, alignItems: 'center', justifyContent: 'center', marginBottom: screenHeight * 0.008 },
+    mediaOptionText: { fontSize: screenWidth * 0.035, fontWeight: '500', color: '#333' },
 
-    // Image preview modal styles
-    imagePreviewOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.9)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    imagePreviewContainer: {
-        width: Dimensions.get('window').width * 0.9,
-        height: Dimensions.get('window').height * 0.7,
-        position: 'relative',
-    },
-    previewImage: {
-        width: '100%',
-        height: '100%',
-        borderRadius: 12,
-    },
-    imagePreviewActions: {
-        position: 'absolute',
-        bottom: 20,
-        left: 0,
-        right: 0,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-    },
-    previewCancelButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    previewSendButton: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: '#007AFF',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    avatarContainer: {
-         position: 'relative',
-    },
-    avatarPlaceholder: {
-         width: 32,
-         height: 32,
-         borderRadius: 16,
-         alignItems: 'center',
-         justifyContent: 'center',
-    },
-    avatarText: {
-         fontSize: 14,
-         fontWeight: '600',
-         color: '#fff',
-    },
-    activeIndicator: {
-         position: 'absolute',
-         bottom: 2,
-         right: 2,
-         width: 12,
-         height: 12,
-         borderRadius: 6,
-         backgroundColor: '#4CAF50',
-         borderWidth: 2,
-         borderColor: '#fff',
-    },
-    
-    // Forward Modal Styles
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'flex-end',
-    },
-    forwardModal: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        maxHeight: '80%',
-        minHeight: '50%',
-    },
-    forwardModalHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
-    },
-    forwardModalTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#333',
-    },
-    selectedMessagePreview: {
-        backgroundColor: '#F5F5F5',
-        marginHorizontal: 20,
-        marginVertical: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: '#009BFF',
-    },
-    messagePreviewHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 8,
-    },
-    messagePreviewLabel: {
-        fontSize: 12,
-        color: '#666',
-        fontWeight: '600',
-    },
-    forwardedBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#FF9800',
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        gap: 4,
-    },
-    forwardedBadgeText: {
-        fontSize: 10,
-        color: '#fff',
-        fontWeight: '600',
-    },
-    selectedMessageText: {
-        fontSize: 14,
-        color: '#666',
-        fontStyle: 'italic',
-    },
-    forwardLoadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 40,
-    },
-    forwardLoadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: '#666',
-    },
-    forwardListContent: {
-        paddingVertical: 8,
-    },
-    forwardContactItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-    },
-    forwardContactAvatar: {
-        marginRight: 12,
-    },
-    forwardAvatarPlaceholder: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    forwardAvatarText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
-    },
-    forwardContactInfo: {
-        flex: 1,
-    },
-    forwardContactName: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 2,
-    },
-    forwardContactType: {
-        fontSize: 12,
-        color: '#666',
-    },
-    forwardEmptyContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingVertical: 60,
-    },
-    forwardEmptyText: {
-        fontSize: 16,
-        color: '#999',
-        marginTop: 12,
-    },
+    // Image preview modal
+    imagePreviewOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.9)', justifyContent: 'center', alignItems: 'center' },
+    imagePreviewContainer: { width: screenWidth * 0.9, height: screenHeight * 0.7, position: 'relative' },
+    previewImage: { width: '100%', height: '100%', borderRadius: screenWidth * 0.03 },
+    imagePreviewActions: { position: 'absolute', bottom: screenHeight * 0.03, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: screenWidth * 0.05 },
+    previewCancelButton: { width: screenWidth * 0.12, height: screenWidth * 0.12, borderRadius: screenWidth * 0.06, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+    previewSendButton: { width: screenWidth * 0.12, height: screenWidth * 0.12, borderRadius: screenWidth * 0.06, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
+
+    avatarContainer: { position: 'relative' },
+    avatarPlaceholder: { width: screenWidth * 0.08, height: screenWidth * 0.08, borderRadius: screenWidth * 0.04, alignItems: 'center', justifyContent: 'center' },
+    avatarText: { fontSize: screenWidth * 0.035, fontWeight: '600', color: '#fff' },
+    activeIndicator: { position: 'absolute', bottom: screenHeight * 0.002, right: screenWidth * 0.005, width: screenWidth * 0.03, height: screenWidth * 0.03, borderRadius: screenWidth * 0.015, backgroundColor: '#4CAF50', borderWidth: 2, borderColor: '#fff' },
+
+    // Forward Modal
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' },
+    forwardModal: { backgroundColor: '#fff', borderTopLeftRadius: screenWidth * 0.05, borderTopRightRadius: screenWidth * 0.05, maxHeight: '80%', minHeight: '50%' },
+    forwardModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: screenWidth * 0.05, paddingVertical: screenHeight * 0.02, borderBottomWidth: 1, borderBottomColor: '#E0E0E0' },
+    forwardModalTitle: { fontSize: screenWidth * 0.045, fontWeight: '600', color: '#333' },
+    selectedMessagePreview: { backgroundColor: '#F5F5F5', marginHorizontal: screenWidth * 0.05, marginVertical: screenHeight * 0.015, paddingHorizontal: screenWidth * 0.04, paddingVertical: screenHeight * 0.015, borderRadius: screenWidth * 0.03, borderLeftWidth: 4, borderLeftColor: '#009BFF' },
+    messagePreviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: screenHeight * 0.005 },
+    messagePreviewLabel: { fontSize: screenWidth * 0.03, color: '#666', fontWeight: '600' },
+    forwardedBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FF9800', paddingHorizontal: screenWidth * 0.02, paddingVertical: screenHeight * 0.005, borderRadius: screenWidth * 0.03, gap: screenWidth * 0.005 },
+    forwardedBadgeText: { fontSize: screenWidth * 0.025, color: '#fff', fontWeight: '600' },
+    selectedMessageText: { fontSize: screenWidth * 0.035, color: '#666', fontStyle: 'italic' },
+    forwardLoadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: screenHeight * 0.05 },
+    forwardLoadingText: { marginTop: screenHeight * 0.015, fontSize: screenWidth * 0.035, color: '#666' },
+    forwardListContent: { paddingVertical: screenHeight * 0.01 },
+    forwardContactItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: screenWidth * 0.05, paddingVertical: screenHeight * 0.015, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+    forwardContactAvatar: { marginRight: screenWidth * 0.03 },
+    forwardAvatarPlaceholder: { width: screenWidth * 0.11, height: screenWidth * 0.11, borderRadius: screenWidth * 0.055, alignItems: 'center', justifyContent: 'center' },
+    forwardAvatarText: { fontSize: screenWidth * 0.04, fontWeight: '600', color: '#fff' },
+    forwardContactInfo: { flex: 1 },
+    forwardContactName: { fontSize: screenWidth * 0.04, fontWeight: '600', color: '#333', marginBottom: screenHeight * 0.003 },
+    forwardContactType: { fontSize: screenWidth * 0.03, color: '#666' },
+    forwardEmptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: screenHeight * 0.08 },
+    forwardEmptyText: { fontSize: screenWidth * 0.04, color: '#999', marginTop: screenHeight * 0.015 },
 });

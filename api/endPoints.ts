@@ -24,6 +24,7 @@ const ENDPOINTS = {
     addMember: "/api/groups/members/add",
     makeAdmin: "/api/groups/members/promote",
     leaveGroup: "/api/groups/",
+    sendMessage: "/api/groups/messages",
   },
   chat: {
     previous_message: "api/messages/messages",

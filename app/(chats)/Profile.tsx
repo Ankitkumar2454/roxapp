@@ -8,6 +8,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   Image,
   ScrollView,
   StyleSheet,
@@ -16,7 +17,7 @@ import {
   View,
 } from 'react-native';
 
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
 export default function ProfileScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -32,7 +33,7 @@ export default function ProfileScreen() {
       setLoading(true);
       setError(null);
       const res = await api.get<ApiResponse>(ENDPOINTS.auth.profile);
-      
+
       if (res.data.success && res.data.data) {
         setUserData(res.data.data);
       }
@@ -76,30 +77,25 @@ export default function ProfileScreen() {
   };
 
   const handleCopyToClipboard = (text: string, label: string) => {
-    // Implement copy to clipboard functionality
     Alert.alert(`${label} copied!`, text);
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
-        {
-          text: 'Logout',
-          onPress: async () => {
-            try {
-              await Storage.clear();
-              router.replace('/login');
-            } catch (err) {
-              console.log('Error logging out:', err);
-            }
-          },
-          style: 'destructive',
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        onPress: async () => {
+          try {
+            await Storage.clear();
+            router.replace('/login');
+          } catch (err) {
+            console.log('Error logging out:', err);
+          }
         },
-      ]
-    );
+        style: 'destructive',
+      },
+    ]);
   };
 
   if (loading) {
@@ -114,7 +110,7 @@ export default function ProfileScreen() {
   if (error || !userData) {
     return (
       <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle-outline" size={48} color="#FF5252" />
+        <Ionicons name="alert-circle-outline" size={screenWidth * 0.12} color="#FF5252" />
         <Text style={styles.errorText}>{error || 'Failed to load profile'}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchUserProfile}>
           <Text style={styles.retryButtonText}>Try Again</Text>
@@ -128,22 +124,19 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.content}>
-        
+        {/* Profile Section */}
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
-            <Image
-              source={{ uri: userData.profileImage }}
-              style={styles.avatar}
-            />
+            <Image source={{ uri: userData.profileImage }} style={styles.avatar} />
             <TouchableOpacity style={styles.editIconButton}>
-              <Ionicons name="pencil" size={18} color="#fff" />
+              <Ionicons name="pencil" size={screenWidth * 0.045} color="#fff" />
             </TouchableOpacity>
           </View>
           <Text style={styles.name}>{userData.fullName}</Text>
           <Text style={styles.username}>@{userData.username}</Text>
         </View>
 
-       
+        {/* Info Section */}
         <View style={styles.infoSection}>
           {userInfo.map((info, index) => (
             <View key={index}>
@@ -156,12 +149,10 @@ export default function ProfileScreen() {
                   style={styles.copyButton}
                   onPress={() => handleCopyToClipboard(info.value, info.label)}
                 >
-                  <Ionicons name="copy-outline" size={20} color="#666" />
+                  <Ionicons name="copy-outline" size={screenWidth * 0.05} color="#666" />
                 </TouchableOpacity>
               </View>
-              {index < userInfo.length - 1 && (
-                <View style={styles.separator} />
-              )}
+              {index < userInfo.length - 1 && <View style={styles.separator} />}
             </View>
           ))}
         </View>
@@ -172,31 +163,26 @@ export default function ProfileScreen() {
             <View style={styles.statusDot} />
             <View style={styles.statusContent}>
               <Text style={styles.statusLabel}>Account Status</Text>
-              <Text style={styles.statusValue}>
-                {userData.isActive ? 'Active' : 'Inactive'}
-              </Text>
+              <Text style={styles.statusValue}>{userData.isActive ? 'Active' : 'Inactive'}</Text>
             </View>
           </View>
           <View style={styles.statusItem}>
-            <Ionicons name="time-outline" size={20} color="#2196F3" />
+            <Ionicons name="time-outline" size={screenWidth * 0.05} color="#2196F3" />
             <View style={styles.statusContent}>
               <Text style={styles.statusLabel}>Last Login</Text>
-              <Text style={styles.statusValue}>
-                {formatDate(userData.lastLogin)}
-              </Text>
+              <Text style={styles.statusValue}>{formatDate(userData.lastLogin)}</Text>
             </View>
           </View>
         </View>
 
-       
+        {/* Buttons */}
         <TouchableOpacity style={styles.editButton}>
-          <Ionicons name="pencil" size={20} color="#fff" />
+          <Ionicons name="pencil" size={screenWidth * 0.05} color="#fff" />
           <Text style={styles.editButtonText}>Edit Profile</Text>
         </TouchableOpacity>
 
-      
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#FF5252" />
+          <Ionicons name="log-out-outline" size={screenWidth * 0.05} color="#FF5252" />
           <Text style={styles.logoutButtonText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -210,7 +196,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
   },
   content: {
-    padding: 20,
+    padding: screenWidth * 0.05,
   },
   loadingContainer: {
     flex: 1,
@@ -219,48 +205,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F7FA',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
+    marginTop: screenHeight * 0.015,
+    fontSize: screenWidth * 0.04,
     color: '#666',
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: screenWidth * 0.1,
     backgroundColor: '#F5F7FA',
   },
   errorText: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.038,
     color: '#FF5252',
     textAlign: 'center',
-    marginTop: 12,
-    marginBottom: 20,
+    marginTop: screenHeight * 0.012,
+    marginBottom: screenHeight * 0.025,
   },
   retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
+    paddingHorizontal: screenWidth * 0.06,
+    paddingVertical: screenHeight * 0.012,
     backgroundColor: '#2196F3',
     borderRadius: 8,
   },
   retryButtonText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: screenWidth * 0.04,
   },
   profileSection: {
     alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 20,
+    marginBottom: screenHeight * 0.04,
+    marginTop: screenHeight * 0.02,
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: screenHeight * 0.018,
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: screenWidth * 0.32,
+    height: screenWidth * 0.32,
+    borderRadius: screenWidth * 0.16,
     borderWidth: 4,
     borderColor: '#fff',
   },
@@ -269,29 +255,29 @@ const styles = StyleSheet.create({
     bottom: 0,
     right: 0,
     backgroundColor: '#2196F3',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: screenWidth * 0.1,
+    height: screenWidth * 0.1,
+    borderRadius: screenWidth * 0.05,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,
     borderColor: '#fff',
   },
   name: {
-    fontSize: 22,
+    fontSize: screenWidth * 0.06,
     fontWeight: '700',
     color: '#000',
   },
   username: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.038,
     color: '#666',
     marginTop: 4,
   },
   infoSection: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: screenWidth * 0.04,
+    marginBottom: screenHeight * 0.02,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -302,7 +288,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 14,
+    paddingVertical: screenHeight * 0.018,
   },
   separator: {
     height: 1,
@@ -312,12 +298,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   infoLabel: {
-    fontSize: 13,
+    fontSize: screenWidth * 0.035,
     color: '#666',
     marginBottom: 4,
   },
   infoValue: {
-    fontSize: 15,
+    fontSize: screenWidth * 0.04,
     color: '#000',
     fontWeight: '500',
   },
@@ -327,8 +313,8 @@ const styles = StyleSheet.create({
   statusSection: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    padding: screenWidth * 0.04,
+    marginBottom: screenHeight * 0.02,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -338,25 +324,23 @@ const styles = StyleSheet.create({
   statusItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: screenHeight * 0.015,
   },
   statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: screenWidth * 0.03,
+    height: screenWidth * 0.03,
+    borderRadius: screenWidth * 0.015,
     backgroundColor: '#4CAF50',
-    marginRight: 12,
+    marginRight: screenWidth * 0.03,
   },
-  statusContent: {
-    flex: 1,
-  },
+  statusContent: { flex: 1 },
   statusLabel: {
-    fontSize: 13,
+    fontSize: screenWidth * 0.035,
     color: '#666',
     marginBottom: 2,
   },
   statusValue: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.04,
     color: '#000',
     fontWeight: '500',
   },
@@ -365,13 +349,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#2196F3',
-    paddingVertical: 16,
+    paddingVertical: screenHeight * 0.02,
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: screenHeight * 0.015,
     gap: 8,
   },
   editButtonText: {
-    fontSize: 16,
+    fontSize: screenWidth * 0.045,
     fontWeight: '600',
     color: '#fff',
   },
@@ -380,12 +364,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF5F5',
-    paddingVertical: 16,
+    paddingVertical: screenHeight * 0.02,
     borderRadius: 12,
     gap: 8,
   },
   logoutButtonText: {
-    fontSize: 16,
+    fontSize: screenWidth * 0.045,
     fontWeight: '600',
     color: '#FF5252',
   },

@@ -2,15 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Tabs, usePathname, useRouter } from "expo-router";
 import { useRef, useState } from "react";
-import { Animated, Easing, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Animated, Dimensions, Easing, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+
+const screenWidth = Dimensions.get("window").width;
+const screenHeight = Dimensions.get("window").height;
 export default function ChatsLayout() {
     const [searchText, setSearchText] = useState("");
     const router = useRouter();
     const pathname = usePathname();
     const insets = useSafeAreaInsets();
-    
+
     // Animation values
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -63,10 +66,10 @@ export default function ChatsLayout() {
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <StatusBar 
-                barStyle="light-content" 
-                backgroundColor="transparent" 
+        <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+            <StatusBar
+                barStyle="light-content"
+                backgroundColor="transparent"
                 translucent={true}
             />
             <LinearGradient
@@ -77,28 +80,34 @@ export default function ChatsLayout() {
             />
             <Tabs
                 screenOptions={({ route }) => ({
+                    tabBarHideOnKeyboard: true,
                     headerShown: route.name !== "/(personalChats)/ChatInPerson",
                     tabBarShowLabel: true,
                     tabBarActiveTintColor: "#007AFF",
                     tabBarInactiveTintColor: "#A0A0A0",
                     tabBarStyle: {
-                        // backgroundColor: "#fff",
+                        position: "absolute",
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        height: 65,
+                        backgroundColor: "#fff",
                         borderTopLeftRadius: 20,
                         borderTopRightRadius: 20,
-                        // paddingBottom: 8,
-                        // shadowColor: "#000",
-                        // shadowOffset: { width: 0, height: -2 },
-                        // shadowOpacity: 0.1,
-                        // shadowRadius: 8,
-                        // elevation: 5,
+                        elevation: 8,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: -2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 6,
                     },
+
                     tabBarLabelStyle: {
                         fontSize: 14,
                         fontWeight: "500",
                     },
                     headerStyle: {
                         height: 90,
-                        paddingBottom: 10,
+                        // paddingBottom: 10,
                         shadowColor: "#000",
                         shadowOffset: { width: 0, height: -2 },
                         shadowOpacity: 0.1,
@@ -127,7 +136,7 @@ export default function ChatsLayout() {
                     headerRight: () => (
 
 
-                        (pathname !== "/Profile" ) && <View style={styles.headerRight}>
+                        (pathname !== "/Profile") && <View style={styles.headerRight}>
 
                             <View style={styles.listHeader}>
                                 <Text style={styles.titleText}>
@@ -176,13 +185,13 @@ export default function ChatsLayout() {
             </Tabs>
             {
                 (pathname !== "/Profile" && pathname !== "/Support") && (
-                    <Animated.View 
+                    <Animated.View
                         style={[
                             styles.fab,
                             {
                                 transform: [
                                     { scale: Animated.multiply(scaleAnim, pulseAnim) },
-                                    { 
+                                    {
                                         rotate: rotateAnim.interpolate({
                                             inputRange: [0, 1],
                                             outputRange: ['0deg', '45deg']
@@ -238,83 +247,79 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 1000,
+        height: screenHeight * 0.05, // responsive status bar height
     },
     headerLeft: {
         flexDirection: "row",
         alignItems: "center",
-        marginLeft: 16,
+        marginLeft: screenWidth * 0.04,
     },
     searchContainer: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: "rgba(255,255,255,0.2)",
-        borderRadius: 20,
-        paddingHorizontal: 10,
-        height: 36,
+        borderRadius: screenWidth * 0.05,
+        paddingHorizontal: screenWidth * 0.025,
+        height: screenHeight * 0.045,
     },
     searchIcon: {
-        marginRight: 6,
+        marginRight: screenWidth * 0.015,
     },
     searchInput: {
         color: "#fff",
-        width: 160,
-        fontSize: 14,
-        paddingVertical: 2,
+        width: screenWidth * 0.4,
+        fontSize: screenWidth * 0.035,
+        paddingVertical: screenHeight * 0.003,
     },
     headerTitle: {
         color: "#fff",
-        fontSize: 18,
+        fontSize: screenWidth * 0.045,
         fontWeight: "600",
-        marginLeft: 8,
+        marginLeft: screenWidth * 0.02,
     },
     headerRight: {
         flexDirection: "row",
         alignItems: "center",
-        marginRight: 16,
+        marginRight: screenWidth * 0.04,
     },
     iconButton: {
-        marginLeft: 16,
-        padding: 4,
+        marginLeft: screenWidth * 0.04,
+        padding: screenWidth * 0.01,
     },
-
     // 🔵 Floating Action Button styles
     fab: {
         position: "absolute",
-        bottom: 110, // just above the tab bar
-        right: 20,
+        bottom: screenHeight * 0.14, // above tab bar
+        right: screenWidth * 0.05,
         zIndex: 100,
     },
     fabTouchable: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
+        width: screenWidth * 0.16,
+        height: screenWidth * 0.16,
+        borderRadius: (screenWidth * 0.16) / 2,
     },
     fabGradient: {
-        width: 64,
-        height: 64,
-        borderRadius: 32, // Perfect circle
+        width: screenWidth * 0.16,
+        height: screenWidth * 0.16,
+        borderRadius: (screenWidth * 0.16) / 2,
         justifyContent: "center",
         alignItems: "center",
         shadowColor: "#009BFF",
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: { width: 0, height: screenHeight * 0.01 },
         shadowOpacity: 0.3,
-        shadowRadius: 16,
+        shadowRadius: screenHeight * 0.02,
         elevation: 12,
     },
     listHeader: {
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 8,
+        paddingHorizontal: screenWidth * 0.04,
+        paddingTop: screenHeight * 0.015,
+        paddingBottom: screenHeight * 0.01,
         color: "#fff",
-
-        // backgroundColor: '#fff',
-        // borderBottomWidth: 1,
-        // borderBottomColor: '#f0f0f0',
     },
     titleText: {
-        fontSize: 18,
+        fontSize: screenWidth * 0.045,
         fontWeight: "600",
-        marginLeft: 8,
+        marginLeft: screenWidth * 0.02,
         color: "#fff",
-    }
+    },
 });

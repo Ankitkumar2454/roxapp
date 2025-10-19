@@ -7,11 +7,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -40,7 +41,7 @@ export default function ChatScreen() {
 
       if (response.data.success && response.data.data) {
         const currentUserData = await Storage.getItem("user");
-        console.log(response.data.data , "currentUserData")
+        console.log(response.data.data, "currentUserData")
 
         const transformedFriends: Friend[] = response.data.data
           .filter((user: any) => user._id !== currentUserData?._id) // Exclude yourself
@@ -83,8 +84,8 @@ export default function ChatScreen() {
       setFilteredFriends(friends);
       return;
     }
-    
-    const filtered = friends.filter(friend => 
+
+    const filtered = friends.filter(friend =>
       friend.name.toLowerCase().includes(searchText.toLowerCase()) ||
       friend.username.toLowerCase().includes(searchText.toLowerCase())
     );
@@ -127,7 +128,7 @@ export default function ChatScreen() {
         <View style={styles.chatCard}>
           <View style={styles.avatarContainer}>
             <View style={styles.avatarPlaceholder}>
-              <Image 
+              <Image
                 source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
                 style={styles.avatarImage}
                 defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
@@ -198,13 +199,13 @@ export default function ChatScreen() {
       <View style={styles.listHeader}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#667eea" />
-           <TextInput
-             style={styles.searchInput}
-             placeholder="Search conversations..."
-             placeholderTextColor="#999"
-             value={searchTerm}
-             onChangeText={handleSearchChange}
-           />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search conversations..."
+            placeholderTextColor="#999"
+            value={searchTerm}
+            onChangeText={handleSearchChange}
+          />
           {searchTerm.length > 0 && (
             <TouchableOpacity onPress={() => handleSearchChange('')}>
               <Ionicons name="close-circle" size={20} color="#999" />
@@ -227,7 +228,9 @@ export default function ChatScreen() {
             tintColor="#009BFF"
           />
         }
-        contentContainerStyle={filteredFriends.length === 0 ? styles.emptyListContent : undefined}
+        contentContainerStyle={filteredFriends.length === 0 ? styles.emptyListContent : {
+          paddingBottom: insets.bottom + 67// 60 = tab bar height
+        }}
       />
 
       <GlobalMessage
@@ -252,8 +255,8 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   listHeader: {
-    paddingHorizontal: 20,
-    paddingVertical:10
+    paddingHorizontal: screenWidth * 0.05,
+    paddingVertical: screenHeight * 0.012,
   },
   headerContent: {
     flexDirection: 'row',
@@ -262,15 +265,15 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: screenWidth * 0.07,
     fontWeight: '700',
     color: '#fff',
     letterSpacing: 0.5,
   },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: screenWidth * 0.1,
+    height: screenWidth * 0.1,
+    borderRadius: screenWidth * 0.05,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -281,9 +284,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 25,
-    paddingHorizontal: 16,
-    height: 50,
+    borderRadius: screenWidth * 0.07,
+    paddingHorizontal: screenWidth * 0.04,
+    height: screenHeight * 0.06,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -292,22 +295,22 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
+    marginLeft: screenWidth * 0.03,
+    fontSize: screenWidth * 0.04,
     color: '#333',
   },
 
   // Chat Item Styles
   chatItem: {
-    marginHorizontal: 12,
-    marginVertical: 3,
+    marginHorizontal: screenWidth * 0.03,
+    marginVertical: screenHeight * 0.004,
   },
   chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: screenWidth * 0.03,
+    padding: screenWidth * 0.03,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
@@ -316,19 +319,19 @@ const styles = StyleSheet.create({
   },
   unreadChat: {
     backgroundColor: '#f0f4ff',
-    borderLeftWidth: 4,
+    borderLeftWidth: screenWidth * 0.01,
     borderLeftColor: '#667eea',
   },
 
   // Avatar Styles
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
+    marginRight: screenWidth * 0.03,
   },
   avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: screenWidth * 0.12,
+    height: screenWidth * 0.12,
+    borderRadius: screenWidth * 0.06,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -337,17 +340,17 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: '100%',
+    height: '100%',
+    borderRadius: screenWidth * 0.06,
   },
   activeIndicator: {
     position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    bottom: screenHeight * 0.002,
+    right: screenWidth * 0.005,
+    width: screenWidth * 0.03,
+    height: screenWidth * 0.03,
+    borderRadius: screenWidth * 0.015,
     backgroundColor: '#4CAF50',
     borderWidth: 2,
     borderColor: '#fff',
@@ -361,7 +364,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: screenHeight * 0.005,
   },
   nameContainer: {
     flexDirection: 'row',
@@ -369,63 +372,43 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   name: {
-    fontSize: 18,
+    fontSize: screenWidth * 0.045,
     fontWeight: '600',
     color: '#2c3e50',
-    marginRight: 8,
-  },
-  onlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e8f5e9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4CAF50',
-    marginRight: 4,
-  },
-  onlineText: {
-    fontSize: 10,
-    color: '#4CAF50',
-    fontWeight: '600',
+    marginRight: screenWidth * 0.02,
   },
   time: {
-    fontSize: 12,
+    fontSize: screenWidth * 0.03,
     color: '#95a5a6',
     fontWeight: '500',
   },
   messageRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: screenHeight * 0.004,
   },
   message: {
-    fontSize: 14,
+    fontSize: screenWidth * 0.035,
     color: '#7f8c8d',
     flex: 1,
-    lineHeight: 20,
+    lineHeight: screenHeight * 0.025,
   },
   username: {
-    fontSize: 12,
+    fontSize: screenWidth * 0.03,
     color: '#667eea',
     fontWeight: '500',
   },
   unreadDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: screenWidth * 0.03,
+    height: screenWidth * 0.03,
+    borderRadius: screenWidth * 0.015,
     backgroundColor: '#667eea',
-    marginLeft: 8,
+    marginLeft: screenWidth * 0.02,
   },
 
   // Separator
   separator: {
-    height: 2,
+    height: screenHeight * 0.002,
     backgroundColor: 'transparent',
   },
 
@@ -437,8 +420,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f9fa',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: screenHeight * 0.02,
+    fontSize: screenWidth * 0.04,
     color: '#7f8c8d',
     fontWeight: '500',
   },
@@ -451,45 +434,45 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 40,
+    paddingVertical: screenHeight * 0.1,
+    paddingHorizontal: screenWidth * 0.1,
   },
   emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: screenWidth * 0.3,
+    height: screenWidth * 0.3,
+    borderRadius: screenWidth * 0.15,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: screenHeight * 0.03,
   },
   emptyText: {
-    fontSize: 24,
+    fontSize: screenWidth * 0.06,
     fontWeight: '700',
     color: '#2c3e50',
-    marginBottom: 8,
+    marginBottom: screenHeight * 0.01,
     textAlign: 'center',
   },
   emptySubtext: {
-    fontSize: 16,
+    fontSize: screenWidth * 0.04,
     color: '#7f8c8d',
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
+    lineHeight: screenHeight * 0.03,
+    marginBottom: screenHeight * 0.04,
   },
   addFriendsButton: {
-    borderRadius: 30,
+    borderRadius: screenWidth * 0.08,
     overflow: 'hidden',
   },
   addButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    gap: 12,
+    paddingHorizontal: screenWidth * 0.08,
+    paddingVertical: screenHeight * 0.02,
+    gap: screenWidth * 0.03,
   },
   addFriendsButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: screenWidth * 0.04,
     fontWeight: '600',
   },
 });

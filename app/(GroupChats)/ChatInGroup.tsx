@@ -22,8 +22,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-
-
 interface ForwardContact {
     id: string;
     name: string;
@@ -49,7 +47,7 @@ export default function GroupChatScreen() {
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
-    
+
     // Forward message states
     const [showForwardModal, setShowForwardModal] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -75,7 +73,7 @@ export default function GroupChatScreen() {
         if (forwardMessage && !loading && forwardedMessageRef.current !== forwardMessage) {
             forwardedMessageRef.current = forwardMessage;
             console.log('Forwarding message to group:', forwardMessage);
-            
+
             // Auto-send the forwarded message
             setTimeout(() => {
                 const newMessage: Message = {
@@ -188,7 +186,7 @@ export default function GroupChatScreen() {
     const fetchForwardContacts = async () => {
         try {
             setForwardLoading(true);
-            
+
             // Fetch friends
             const friendsResponse = await api.get(ENDPOINTS.friends.getAll);
             if (friendsResponse.data.success && friendsResponse.data.data) {
@@ -234,12 +232,12 @@ export default function GroupChatScreen() {
             // Use utility function to handle forwarded message text
             const forwardText = getForwardText(selectedMessage.text);
             const isAlreadyForwarded = selectedMessage.text.startsWith('Forwarded: ');
-            
+
             console.log('Forwarding to:', contact.name, 'Type:', contact.type);
             console.log('Original message:', selectedMessage.text);
             console.log('Is already forwarded:', isAlreadyForwarded);
             console.log('Forward text:', forwardText);
-            
+
             if (contact.type === 'friend') {
                 // Forward to personal chat
                 console.log('Navigating to personal chat with:', contact.id);
@@ -264,7 +262,7 @@ export default function GroupChatScreen() {
                     }
                 });
             }
-            
+
             setShowForwardModal(false);
             setSelectedMessage(null);
         } catch (error) {
@@ -308,17 +306,17 @@ export default function GroupChatScreen() {
     return (
         <SafeAreaView style={styles.container}>
             <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} />
-            
+
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity 
+                <TouchableOpacity
                     onPress={() => router.replace("/(chats)/Groups")}
                     style={styles.backButton}
                     activeOpacity={0.7}
                 >
                     <Ionicons name="arrow-back" size={24} color="black" />
                 </TouchableOpacity>
-                
+
                 <TouchableOpacity
                     style={styles.headerCenter}
                     onPress={() => {
@@ -341,7 +339,7 @@ export default function GroupChatScreen() {
                         </Text>
                     </View>
                 </TouchableOpacity>
-                
+
                 <View style={styles.headerIcons}>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
                         <Ionicons name="videocam-outline" size={22} color="black" />
@@ -392,15 +390,15 @@ export default function GroupChatScreen() {
             </View>
 
             {/* Main Content with Keyboard Avoidance */}
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 style={styles.keyboardAvoidingContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
                 {/* Messages */}
                 <View style={styles.chatContainer}>
-                    <ScrollView 
-                        ref={scrollViewRef} 
+                    <ScrollView
+                        ref={scrollViewRef}
                         contentContainerStyle={styles.chatScroll}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
@@ -436,10 +434,10 @@ export default function GroupChatScreen() {
                                             <View style={styles.messageContentContainer}>
                                                 {msg.text.startsWith('Forwarded: ') && (
                                                     <View style={styles.forwardedMessageHeader}>
-                                                        <Ionicons 
-                                                            name="arrow-forward" 
-                                                            size={14} 
-                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
+                                                        <Ionicons
+                                                            name="arrow-forward"
+                                                            size={14}
+                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"}
                                                         />
                                                         <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
                                                             Forwarded
@@ -615,11 +613,11 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
     },
-    keyboardAvoidingContainer: { 
+    keyboardAvoidingContainer: {
         flex: 1,
     },
-    chatContainer: { 
-        flex: 1, 
+    chatContainer: {
+        flex: 1,
         marginTop: 10, // Space between header and chat
         backgroundColor: '#E9F0F7',
     },
@@ -646,14 +644,14 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.2)',
         marginLeft: 12,
     },
-    headerCenter: { 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        flex: 1, 
-        marginLeft: 8 
+    headerCenter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginLeft: 8
     },
-    headerIcons: { 
-        flexDirection: 'row', 
+    headerIcons: {
+        flexDirection: 'row',
         gap: 6,
         marginRight: 12,
     },
@@ -746,9 +744,9 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#666',
     },
-    chatScroll: { 
+    chatScroll: {
         flexGrow: 1,
-        paddingVertical: 12, 
+        paddingVertical: 12,
         paddingHorizontal: 10,
         paddingBottom: 20, // Extra padding at bottom
     },
@@ -771,7 +769,7 @@ const styles = StyleSheet.create({
     messageText: { fontSize: 15 },
     myText: { color: '#fff' },
     theirText: { color: '#333' },
-    
+
     // Forwarded message styles
     messageContentContainer: {
         flex: 1,
@@ -792,7 +790,7 @@ const styles = StyleSheet.create({
     theirForwardedLabel: {
         color: '#666',
     },
-    
+
     msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
     myTime: { color: 'rgba(255,255,255,0.7)' },
     theirTime: { color: '#999' },
@@ -864,7 +862,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
-    
+
     // Forward Modal Styles
     modalOverlay: {
         flex: 1,
