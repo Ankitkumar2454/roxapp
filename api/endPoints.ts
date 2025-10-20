@@ -24,11 +24,19 @@ const ENDPOINTS = {
     addMember: "/api/groups/members/add",
     makeAdmin: "/api/groups/members/promote",
     leaveGroup: "/api/groups/",
+    messages: {
+      send: "/api/group-messages/groups",
+      getHistory: "/api/group-messages/groups",
+      markAsRead: "/api/group-messages/groups",
+      markAllAsRead: "/api/group-messages/groups",
+      getUnreadCount: "/api/group-messages/groups",
+    },
   },
   chat: {
     previous_message: "api/messages/messages",
+    markAsRead: "/api/messages/",
   },
-  socket: "wss://polobet247.in",
+  socket: "ws://192.168.0.222:8000",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory:"/api/whatsapp-messages/history"

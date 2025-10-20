@@ -1,6 +1,7 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
+import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { GroupData, Message } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -8,7 +9,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
-    Image,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -21,6 +21,7 @@ import {
     View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import io, { Socket } from 'socket.io-client';
 
 
 
@@ -34,7 +35,7 @@ interface ForwardContact {
     bgColor: string;
 }
 
-const CURRENT_USER_ID = 'me'; // This should come from your auth state
+const SOCKET_URL = ENDPOINTS.socket;
 
 export default function GroupChatScreen() {
     const router = useRouter();
@@ -46,9 +47,15 @@ export default function GroupChatScreen() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [groupData, setGroupData] = useState<GroupData | null>(null);
     const [loading, setLoading] = useState(true);
+    const [messagesLoading, setMessagesLoading] = useState(true);
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
+    
+    // Socket and typing states
+    const [isTyping, setIsTyping] = useState(false);
+    const [currentUserId, setCurrentUserId] = useState('');
+    const [typingUsers, setTypingUsers] = useState<string[]>([]);
     
     // Forward message states
     const [showForwardModal, setShowForwardModal] = useState(false);
@@ -56,13 +63,17 @@ export default function GroupChatScreen() {
     const [forwardContacts, setForwardContacts] = useState<ForwardContact[]>([]);
     const [forwardGroups, setForwardGroups] = useState<ForwardContact[]>([]);
     const [forwardLoading, setForwardLoading] = useState(false);
+    const [isForwarding, setIsForwarding] = useState(false);
 
     const scrollViewRef = useRef<ScrollView>(null);
+    const socketRef = useRef<Socket | null>(null);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
     const forwardedMessageRef = useRef<string | null>(null);
 
     useEffect(() => {
         if (groupId) {
             fetchGroupData();
+            initializeSocket();
         }
     }, [groupId]);
 
@@ -70,37 +81,232 @@ export default function GroupChatScreen() {
         scrollViewRef.current?.scrollToEnd({ animated: true });
     }, [messages]);
 
+    // Socket initialization
+    const initializeSocket = async () => {
+        try {
+            const token = await (Storage as any).getItem("accessToken");
+            const userData = await (Storage as any).getItem("user");
+            if (!token || !userData) return;
+
+            setCurrentUserId(userData.id);
+            await fetchGroupMessages(groupId);
+            await markAllMessagesAsRead(); 
+
+            socketRef.current = io(SOCKET_URL, {
+                auth: { token },
+                reconnection: true,
+                transports: ['websocket'],
+            });
+
+            // Join group room
+            if (socketRef.current) {
+                socketRef.current.emit('group:join', groupId);
+                console.log("group:join" , groupId);
+
+               
+                socketRef.current.on('group:message:receive', handleIncomingGroupMessage);
+                socketRef.current.on('group:message:error', handleMessageError);
+                socketRef.current.on('group:message:read', handleMessageReadReceipt);
+                
+                // Listen for typing indicators
+                socketRef.current.on('group:typing:start', handleTypingStart);
+                socketRef.current.on('group:typing:stop', handleTypingStop);
+            }
+
+            console.log('Socket initialized for group:', groupId);
+        } catch (err) {
+            console.error('Socket init error:', err);
+        }
+    };
+
+    // Handle incoming group messages
+    const handleIncomingGroupMessage = (msg: any) => {
+        setMessages((prev) => {
+            // console.log(msg.sender._id , currentUserId , "msg.sender._id === currentUserId")
+            if (msg.sender._id === currentUserId) {
+                const tempMessageIndex = prev.findIndex(existingMsg => 
+                    existingMsg.senderId === currentUserId && 
+                    existingMsg.text === msg.content && 
+                    !existingMsg._id // temporary message doesn't have _id
+                );
+                
+                if (tempMessageIndex !== -1) {
+                    // Update the temporary message with server data
+                    const updatedMessages = [...prev];
+                    updatedMessages[tempMessageIndex] = {
+                        ...updatedMessages[tempMessageIndex],
+                        _id: msg._id,
+                        id: msg._id,
+                        isDelivered: true,
+                        isRead: msg.readBy?.some((read: any) => read.user.toString() === currentUserId) || false,
+                        messageType: msg.messageType || 'text',
+                    };
+                    return updatedMessages;
+                }
+            }
+            
+            // Check if message already exists to prevent duplicates
+            const messageExists = prev.some(existingMsg => existingMsg._id === msg._id);
+            if (messageExists) {
+                return prev;
+            }
+            setTypingUsers([]);
+            
+            const newMsg: Message = {
+                _id: msg._id,
+                id: msg._id,
+                senderId: msg.sender._id,
+                sender: msg.sender,
+                text: msg.content,
+                content: msg.content,
+                time: formatTime(msg.createdAt),
+                isSent: msg.sender._id === currentUserId,
+                isDelivered: true,
+                isRead: msg.readBy?.some((read: any) => read.user.toString() === currentUserId) || false,
+                messageType: msg.messageType || 'text',
+                isSystemMessage: isSystemMessage(msg.content),
+            };
+            
+            return [...prev, newMsg];
+        });
+        scrollToEnd();
+        
+        // Mark message as read if it's not from current user
+       
+    };
+
+    // Handle message errors
+    const handleMessageError = (error: any) => {
+        console.error('Message error:', error);
+        showMessage('error', error.error || 'Failed to send message');
+    };
+
+    // Handle read receipt updates
+    const handleMessageReadReceipt = (data: any) => {
+        const { messageId, readBy, readAt } = data;
+        setMessages(prev => prev.map(msg => {
+            if (msg._id === messageId) {
+                return {
+                    ...msg,
+                    isRead: true,
+                    readBy: [...(msg.readBy || []), { user: readBy, readAt }]
+                };
+            }
+            return msg;
+        }));
+    };
+
+    // Handle typing start
+    const handleTypingStart = (data: any) => {
+        if (data.userId !== currentUserId) {
+            setTypingUsers(prev => {
+                if (!prev.includes(data.userId)) {
+                    return [...prev, data.userId];
+                }
+                return prev;
+            });
+        }
+    };
+
+    // Handle typing stop
+    const handleTypingStop = (data: any) => {
+        setTypingUsers(prev => prev.filter(userId => userId !== data.userId));
+    };
+
+    // Fetch group messages
+    const fetchGroupMessages = async (groupId: string) => {
+        try {
+            setMessagesLoading(true);
+            console.log(`${ENDPOINTS.groups.messages.getHistory}/${groupId}/messages` , "response.data.data.messages")
+            const response = await api.get(`${ENDPOINTS.groups.messages.getHistory}/${groupId}/messages`);
+            if (response.data.success && response.data.data?.messages) {
+                const formattedMessages: Message[] = response.data.data.messages.map((msg: any) => ({
+                    _id: msg._id,
+                    id: msg._id,
+                    senderId: msg.sender._id,
+                    sender: msg.sender,
+                    text: msg.content,
+                    content: msg.content,
+                    time: formatTime(msg.createdAt),
+                    isSent: msg.sender._id === currentUserId,
+                    isDelivered: true,
+                    isRead: msg.readBy?.some((read: any) => read.user.toString() === currentUserId) || false,
+                    messageType: msg.messageType || 'text',
+                    isSystemMessage: isSystemMessage(msg.content),
+                }));
+                setMessages(formattedMessages);
+                setTimeout(() => scrollToEnd(), 300);
+            }
+        } catch (error) {
+            console.error('Error fetching group messages:', error);
+        } finally {
+            setMessagesLoading(false);
+        }
+    };
+
+    // Format time helper
+    const formatTime = (timestamp: string): string =>
+        new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    // Scroll to end helper
+    const scrollToEnd = () => setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 200);
+
+    // Mark message as read
+    const markMessageAsRead = async (messageId: string) => {
+        // try {
+        //     await api.put(`${ENDPOINTS.groups.messages.markAsRead}/${messageId}/read`);
+        // } catch (error) {
+        //     console.error('Error marking message as read:', error);
+        // }
+    };
+
+    // Mark all messages as read when entering the chat
+    const markAllMessagesAsRead = async () => {
+        try {
+            await api.put(`${ENDPOINTS.groups.messages.markAllAsRead}/${groupId}/messages/read-all`);
+        } catch (error) {
+            console.error('Error marking all messages as read:', error);
+        }
+    };
+
     // Handle forwarded message
     useEffect(() => {
-        if (forwardMessage && !loading && forwardedMessageRef.current !== forwardMessage) {
+        if (forwardMessage && socketRef.current && !loading && forwardedMessageRef.current !== forwardMessage) {
             forwardedMessageRef.current = forwardMessage;
+            setIsForwarding(true);
             console.log('Forwarding message to group:', forwardMessage);
             
             // Auto-send the forwarded message
             setTimeout(() => {
-                const newMessage: Message = {
-                    id: Date.now().toString(),
-                    senderId: CURRENT_USER_ID,
-                    senderName: 'You',
-                    text: forwardMessage,
-                    time: new Date().toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false,
-                    }),
-                    isSent: true,
-                    isDelivered: false,
-                };
+                if (socketRef.current && currentUserId) {
+                    const tempId = Date.now().toString();
+                    const newMessage: Message = {
+                        id: tempId,
+                        senderId: currentUserId,
+                        text: forwardMessage,
+                        content: forwardMessage,
+                        time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                        isSent: true,
+                    };
+                    
+                    setMessages((prev) => [...prev, newMessage]);
+                    setMessage('');
+                    scrollToEnd();
 
-                setMessages(prev => [...prev, newMessage]);
-                setMessage('');
-
-                // TODO: Send message to backend
-                // sendMessageToBackend(groupId, forwardMessage);
-                console.log('Message forwarded to group successfully');
+                    if (socketRef.current) {
+                        socketRef.current.emit('group:message:send', {
+                            groupId: groupId,
+                            content: forwardMessage,
+                            messageType: 'text',
+                        });
+                    }
+                    
+                    console.log('Message forwarded to group successfully');
+                    setIsForwarding(false);
+                }
             }, 2000);
         }
-    }, [forwardMessage, loading]);
+    }, [forwardMessage, loading, currentUserId, groupId]);
 
     const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
         setMessageType(type);
@@ -115,8 +321,6 @@ export default function GroupChatScreen() {
 
             if (response.data.success && response.data.data) {
                 setGroupData(response.data.data);
-                // TODO: Fetch messages for this group
-                // fetchMessages(groupId);
             } else {
                 showMessage('error', 'Failed to load group data');
             }
@@ -128,6 +332,19 @@ export default function GroupChatScreen() {
         }
     };
 
+    // Get unread message count
+    const getUnreadMessageCount = async () => {
+        try {
+            const response = await api.get(`${ENDPOINTS.groups.messages.getUnreadCount}/${groupId}/messages/unread/count`);
+            if (response.data.success) {
+                return response.data.data.count;
+            }
+        } catch (error) {
+            console.error('Error fetching unread count:', error);
+        }
+        return 0;
+    };
+
     const getAvatarUrl = (profileImage?: string, fullName?: string) => {
         if (profileImage) {
             return profileImage;
@@ -135,33 +352,75 @@ export default function GroupChatScreen() {
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=009BFF&color=fff&size=128`;
     };
 
-    const handleSend = () => {
-        if (message.trim()) {
-            const newMessage: Message = {
-                id: Date.now().toString(),
-                senderId: CURRENT_USER_ID,
-                senderName: 'You',
-                text: message.trim(),
-                time: new Date().toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false,
-                }),
-                isSent: true,
-                isDelivered: false,
-            };
+    const handleSend = async () => {
+        if (!message.trim() || !socketRef.current) return;
 
-            setMessages([...messages, newMessage]);
-            setMessage('');
+        const messageText = message.trim();
+        const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const newMessage: Message = {
+            id: tempId,
+            senderId: currentUserId,
+            text: messageText,
+            content: messageText,
+            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            isSent: true,
+            isDelivered: false,
+            messageType: 'text',
+        };
 
-            // TODO: Send message to backend
-            // sendMessageToBackend(groupId, message.trim());
+        // Add temporary message immediately for better UX
+        // setMessages((prev) => [...prev, newMessage]);
+        setMessage('');
+        scrollToEnd();
+
+        // Send message via socket
+        if (socketRef.current) {
+            socketRef.current.emit('group:message:send', {
+                groupId: groupId,
+                content: messageText,
+                messageType: 'text',
+            });
         }
     };
 
     const isUserAdmin = () => {
         if (!groupData) return false;
-        return groupData.admins.some(admin => admin._id === CURRENT_USER_ID);
+        return groupData.admins.some(admin => admin._id === currentUserId);
+    };
+
+    // Check if a message is a system message
+    const isSystemMessage = (messageText: string): boolean => {
+        const systemMessagePatterns = [
+            'was promoted to admin',
+            'created the group',
+            'was added to the group',
+            'left the group',
+            'was removed from the group',
+            'changed the group name',
+            'changed the group description',
+            'changed the group image'
+        ];
+        
+        return systemMessagePatterns.some(pattern => 
+            messageText.toLowerCase().includes(pattern.toLowerCase())
+        );
+    };
+
+    // Handle typing functionality
+    const handleTyping = (text: string) => {
+        setMessage(text);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        if (socketRef.current && text.length > 0) {
+            socketRef.current.emit('group:typing:start', { groupId: groupId });
+        }
+        typingTimeoutRef.current = setTimeout(() => emitTypingStop(), 2000);
+    };
+
+    const emitTypingStop = () => {
+        if (socketRef.current) {
+            socketRef.current.emit('group:typing:stop', { groupId: groupId });
+        }
     };
 
     // Forward message functions
@@ -277,6 +536,19 @@ export default function GroupChatScreen() {
         setSelectedMessage(null);
     };
 
+    // Cleanup socket connection
+    useEffect(() => {
+        return () => {
+            if (socketRef.current) {
+                socketRef.current.emit('group:leave', groupId);
+                socketRef.current.disconnect();
+            }
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
+    }, [groupId]);
+
     if (loading) {
         return (
             <SafeAreaView style={styles.container}>
@@ -309,7 +581,6 @@ export default function GroupChatScreen() {
         <SafeAreaView style={styles.container}>
             <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} />
             
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity 
                     onPress={() => router.replace("/(chats)/Groups")}
@@ -355,7 +626,7 @@ export default function GroupChatScreen() {
                 </View>
             </View>
 
-            {/* Group Info Banner (if admin) */}
+
             {isUserAdmin() && (
                 <View style={styles.adminBanner}>
                     <Ionicons name="shield-checkmark" size={16} color="#FF9800" />
@@ -363,35 +634,8 @@ export default function GroupChatScreen() {
                 </View>
             )}
 
-            {/* Members Preview */}
-            <View style={styles.membersPreview}>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.membersScrollContent}
-                >
-                    {groupData.members.slice(0, 10).map((member, index) => (
-                        <View key={member._id} style={styles.memberPreviewItem}>
-                            <Image
-                                source={{ uri: getAvatarUrl(member.profileImage, member.fullName) }}
-                                style={styles.memberPreviewAvatar}
-                            />
-                            {groupData.admins.some(admin => admin._id === member._id) && (
-                                <View style={styles.adminBadgeSmall}>
-                                    <Ionicons name="star" size={10} color="#fff" />
-                                </View>
-                            )}
-                        </View>
-                    ))}
-                    {groupData.members.length > 10 && (
-                        <View style={styles.moreMembers}>
-                            <Text style={styles.moreMembersText}>+{groupData.members.length - 10}</Text>
-                        </View>
-                    )}
-                </ScrollView>
-            </View>
 
-            {/* Main Content with Keyboard Avoidance */}
+
             <KeyboardAvoidingView 
                 style={styles.keyboardAvoidingContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -406,7 +650,12 @@ export default function GroupChatScreen() {
                         keyboardShouldPersistTaps="handled"
                         nestedScrollEnabled={true}
                     >
-                        {messages.length === 0 ? (
+                        {messagesLoading ? (
+                            <View style={styles.messagesLoadingContainer}>
+                                <ActivityIndicator size="large" color="#007AFF" />
+                                <Text style={styles.messagesLoadingText}>Loading messages...</Text>
+                            </View>
+                        ) : messages.length === 0 ? (
                             <View style={styles.emptyMessagesContainer}>
                                 <Ionicons name="chatbubbles-outline" size={64} color="#ccc" />
                                 <Text style={styles.emptyMessagesText}>No messages yet</Text>
@@ -415,52 +664,87 @@ export default function GroupChatScreen() {
                                 </Text>
                             </View>
                         ) : (
-                            messages.map((msg) => {
-                                const isMe = msg.senderId === CURRENT_USER_ID;
+                            messages.map((msg, index) => {
+                                const isMe = msg.senderId === currentUserId;
+                                const prevMsg = index > 0 ? messages[index - 1] : null;
+                                const nextMsg = index < messages.length - 1 ? messages[index + 1] : null;
+                                
+                                // Check if this is a system message
+                                const isSystemMsg = msg.isSystemMessage || isSystemMessage(msg.text);
+                                
+                                // Check if this is the first message from this sender in a group
+                                const isFirstInGroup = !prevMsg || prevMsg.senderId !== msg.senderId;
+                                // Check if this is the last message from this sender in a group
+                                const isLastInGroup = !nextMsg || nextMsg.senderId !== msg.senderId;
+                                
+                                // Render system message differently
+                                if (isSystemMsg) {
+                                    return (
+                                        <View key={msg._id || msg.id} style={styles.systemMessageContainer}>
+                                            <View style={styles.systemMessageBubble}>
+                                                <Text style={styles.systemMessageText}>
+                                                    {msg.text}
+                                                </Text>
+                                                <Text style={styles.systemMessageTime}>
+                                                    {msg.time}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    );
+                                }
+                                
                                 return (
                                     <TouchableOpacity
-                                        key={msg.id}
-                                        style={[styles.messageRow, isMe ? styles.messageRight : styles.messageLeft]}
+                                        key={msg._id || msg.id}
+                                        style={[
+                                            styles.messageRow, 
+                                            isMe ? styles.messageRight : styles.messageLeft,
+                                            isFirstInGroup && styles.firstMessageInGroup,
+                                            isLastInGroup && styles.lastMessageInGroup
+                                        ]}
                                         onLongPress={() => handleMessageLongPress(msg)}
                                         activeOpacity={0.8}
                                     >
-                                        {!isMe && (
-                                            <View style={styles.senderRow}>
-                                                {msg.avatar && (
-                                                    <Image source={{ uri: msg.avatar }} style={styles.messageAvatar} />
-                                                )}
-                                                <Text style={styles.senderName}>{msg.senderName}</Text>
-                                            </View>
-                                        )}
-                                        <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
-                                            <View style={styles.messageContentContainer}>
-                                                {msg.text.startsWith('Forwarded: ') && (
-                                                    <View style={styles.forwardedMessageHeader}>
-                                                        <Ionicons 
-                                                            name="arrow-forward" 
-                                                            size={14} 
-                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
-                                                        />
-                                                        <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
-                                                            Forwarded
-                                                        </Text>
-                                                    </View>
-                                                )}
-                                                <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
-                                                    {msg.text.startsWith('Forwarded: ') ? msg.text.substring(11) : msg.text}
+                                        {/* Sender Name - Only for first message in group and not for current user */}
+                                        {!isMe && isFirstInGroup && (
+                                            <View style={styles.senderNameContainer}>
+                                                <Text style={styles.senderName}>
+                                                    {msg.sender?.fullName || msg.sender?.username || 'Unknown'}
                                                 </Text>
                                             </View>
+                                        )}
+                                        
+                                        {/* Message Bubble */}
+                                        <View style={[
+                                            styles.messageBubble, 
+                                            isMe ? styles.myBubble : styles.theirBubble,
+                                            isFirstInGroup && (isMe ? styles.myFirstBubble : styles.theirFirstBubble),
+                                            isLastInGroup && (isMe ? styles.myLastBubble : styles.theirLastBubble),
+                                            !isFirstInGroup && !isLastInGroup && styles.middleBubble,
+                                        ]}>
+                                            <Text style={[styles.messageText, isMe ? styles.myText : styles.theirText]}>
+                                                {msg.text.startsWith('Forwarded: ') ? msg.text.substring(11) : msg.text}
+                                            </Text>
+                                            
+                                            {/* Timestamp and Status inside bubble */}
                                             <View style={styles.messageFooter}>
                                                 <Text style={[styles.msgTime, isMe ? styles.myTime : styles.theirTime]}>
                                                     {msg.time}
                                                 </Text>
                                                 {isMe && (
-                                                    <Ionicons
-                                                        name={msg.isDelivered ? "checkmark-done" : "checkmark"}
-                                                        size={16}
-                                                        color={msg.isDelivered ? "#4CAF50" : "rgba(255, 255, 255, 0.6)"}
-                                                        style={styles.checkmark}
-                                                    />
+                                                    <View style={styles.messageStatusContainer}>
+                                                        <Ionicons
+                                                            name={msg.isRead ? "checkmark-done" : (msg.isDelivered ? "checkmark-done" : "checkmark")}
+                                                            size={16}
+                                                            color={msg.isRead ? "#4CAF50" : (msg.isDelivered ? "#4CAF50" : "rgba(255, 255, 255, 0.6)")}
+                                                            style={styles.checkmark}
+                                                        />
+                                                        {msg.isRead && msg.readBy && msg.readBy.length > 1 && (
+                                                            <Text style={styles.readCount}>
+                                                                {msg.readBy.length - 1}
+                                                            </Text>
+                                                        )}
+                                                    </View>
                                                 )}
                                             </View>
                                         </View>
@@ -468,33 +752,56 @@ export default function GroupChatScreen() {
                                 );
                             })
                         )}
+                        {/* Typing indicators */}
+                        {typingUsers.length > 0 && (
+                            <View style={[styles.messageRow, styles.messageLeft, styles.typingIndicatorContainer]}>
+                                <View style={styles.typingBubble}>
+                                    <Text style={styles.typingText}>
+                                        {typingUsers.length === 1 ? 'Someone is typing...' : `${typingUsers.length} people are typing...`}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+                        {/* Forwarding indicator */}
+                        {isForwarding && (
+                            <View style={[styles.messageRow, styles.messageRight]}>
+                                <View style={[styles.messageBubble, styles.myBubble, styles.forwardingBubble]}>
+                                    <Text style={[styles.messageText, styles.myText]}>
+                                        Forwarding message...
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
                     </ScrollView>
                 </View>
 
                 {/* Input */}
-                <View style={styles.inputBar}>
-                    <TouchableOpacity style={styles.iconButton}>
-                        <Ionicons name="add" size={26} color="#007AFF" />
+                <View style={[styles.inputBar, messagesLoading && styles.inputBarDisabled]}>
+                    <TouchableOpacity 
+                        style={styles.iconButton}
+                        disabled={messagesLoading}
+                    >
+                        <Ionicons name="add" size={26} color={messagesLoading ? "#ccc" : "#007AFF"} />
                     </TouchableOpacity>
                     <TextInput
-                        style={styles.input}
-                        placeholder="Type a message..."
+                        style={[styles.input, messagesLoading && styles.inputDisabled]}
+                        placeholder={messagesLoading ? "Loading messages..." : "Type a message..."}
                         placeholderTextColor="#888"
                         value={message}
-                        onChangeText={setMessage}
+                        onChangeText={handleTyping}
                         multiline
+                        editable={!messagesLoading}
                     />
                     <TouchableOpacity
-                        style={[styles.sendButton, !message.trim() && { opacity: 0.5 }]}
+                        style={[styles.sendButton, (!message.trim() || messagesLoading) && { opacity: 0.5 }]}
                         onPress={handleSend}
-                        disabled={!message.trim()}
+                        disabled={!message.trim() || messagesLoading}
                     >
                         <Ionicons name="send" size={22} color="#fff" />
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
 
-            {/* Forward Message Modal */}
             <Modal
                 visible={showForwardModal}
                 transparent={true}
@@ -580,7 +887,10 @@ export default function GroupChatScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#E9F0F7' },
+    container: { 
+        flex: 1, 
+        backgroundColor: '#F2F2F7' 
+    },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -620,8 +930,8 @@ const styles = StyleSheet.create({
     },
     chatContainer: { 
         flex: 1, 
-        marginTop: 10, // Space between header and chat
-        backgroundColor: '#E9F0F7',
+        marginTop: 8,
+        backgroundColor: '#F2F2F7',
     },
     header: {
         flexDirection: 'row',
@@ -665,21 +975,6 @@ const styles = StyleSheet.create({
     userInfo: {
         flex: 1,
         marginLeft: 8,
-    },
-    avatarContainer: {
-        position: 'relative',
-    },
-    avatarPlaceholder: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    avatarText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#fff',
     },
     groupName: { fontSize: 14, fontWeight: '600', color: 'black' },
     memberCount: { fontSize: 11, color: 'gray' },
@@ -748,32 +1043,115 @@ const styles = StyleSheet.create({
     },
     chatScroll: { 
         flexGrow: 1,
-        paddingVertical: 12, 
-        paddingHorizontal: 10,
-        paddingBottom: 20, // Extra padding at bottom
+        paddingVertical: 16, 
+        paddingHorizontal: 16,
+        paddingBottom: 24,
     },
-    messageRow: { flexDirection: 'row', marginVertical: 6, alignItems: 'flex-end' },
-    messageLeft: { justifyContent: 'flex-start' },
-    messageRight: { justifyContent: 'flex-end', alignSelf: 'flex-end' },
-    messageAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
+    messageRow: { 
+        flexDirection: 'column', 
+        marginVertical: 2, 
+        alignItems: 'flex-start',
+        paddingHorizontal: 4,
+    },
+    messageLeft: { 
+        alignItems: 'flex-start' 
+    },
+    messageRight: { 
+        alignItems: 'flex-end',
+    },
+    firstMessageInGroup: {
+        marginTop: 8,
+    },
+    lastMessageInGroup: {
+        marginBottom: 8,
+    },
+    // Sender name container for proper stacking
+    senderNameContainer: {
+        marginBottom: 4,
+        marginLeft: 4,
+    },
+    // Header avatar styles
+    avatarContainer: {
+        position: 'relative',
+    },
+    avatarPlaceholder: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#fff',
+    },
     messageBubble: {
         maxWidth: '75%',
-        borderRadius: 20,
-        paddingHorizontal: 14,
-        paddingVertical: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         shadowColor: '#000',
-        shadowOpacity: 0.05,
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
         shadowRadius: 2,
         elevation: 2,
     },
-    myBubble: { backgroundColor: '#2196F3', borderBottomRightRadius: 4 },
-    theirBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 4 },
-    messageText: { fontSize: 15 },
-    myText: { color: '#fff' },
-    theirText: { color: '#333' },
+    myBubble: { 
+        backgroundColor: '#007AFF',
+    },
+    theirBubble: { 
+        backgroundColor: '#FFFFFF',
+        borderWidth: 1,
+        borderColor: '#E5E5EA',
+    },
+    // WhatsApp-style bubble grouping
+    myFirstBubble: {
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
+        borderBottomLeftRadius: 18,
+        borderBottomRightRadius: 4,
+    },
+    myLastBubble: {
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
+        borderBottomLeftRadius: 4,
+        borderBottomRightRadius: 18,
+    },
+    theirFirstBubble: {
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
+        borderBottomLeftRadius: 4,
+        borderBottomRightRadius: 18,
+    },
+    theirLastBubble: {
+        borderTopLeftRadius: 18,
+        borderTopRightRadius: 18,
+        borderBottomLeftRadius: 18,
+        borderBottomRightRadius: 4,
+    },
+    middleBubble: {
+        borderRadius: 18,
+    },
+    messageText: { 
+        fontSize: 16,
+        lineHeight: 20,
+        fontWeight: '400',
+    },
+    myText: { 
+        color: '#FFFFFF',
+        fontWeight: '500',
+    },
+    theirText: { 
+        color: '#1C1C1E',
+        fontWeight: '400',
+    },
     
     // Forwarded message styles
     messageContentContainer: {
+        flex: 1,
+        maxWidth: '75%',
+    },
+    messageTextContainer: {
         flex: 1,
     },
     forwardedMessageHeader: {
@@ -793,9 +1171,16 @@ const styles = StyleSheet.create({
         color: '#666',
     },
     
-    msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
-    myTime: { color: 'rgba(255,255,255,0.7)' },
-    theirTime: { color: '#999' },
+    msgTime: { 
+        fontSize: 11, 
+        fontWeight: '400',
+    },
+    myTime: { 
+        color: 'rgba(255,255,255,0.7)',
+    },
+    theirTime: { 
+        color: '#8E8E93',
+    },
     emptyMessagesContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -813,6 +1198,18 @@ const styles = StyleSheet.create({
         color: '#999',
         marginTop: 8,
     },
+    messagesLoadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 60,
+    },
+    messagesLoadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '500',
+    },
     senderRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -822,47 +1219,80 @@ const styles = StyleSheet.create({
     senderName: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#009BFF',
-        marginLeft: 6,
+        color: '#007AFF',
     },
     messageFooter: {
         flexDirection: 'row',
         alignItems: 'center',
         marginTop: 4,
         justifyContent: 'flex-end',
+        gap: 4,
     },
     checkmark: {
         marginLeft: 4,
     },
-    inputBar: {
+    messageStatusContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
-        marginHorizontal: 10,
-        marginBottom: 10,
-        borderRadius: 25,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 3,
     },
-    iconButton: { paddingHorizontal: 6 },
+    readCount: {
+        fontSize: 10,
+        color: '#4CAF50',
+        marginLeft: 2,
+        fontWeight: '600',
+    },
+    inputBar: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        backgroundColor: '#FFFFFF',
+        marginHorizontal: 16,
+        marginBottom: 16,
+        borderRadius: 24,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 8,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: '#E5E5EA',
+    },
+    iconButton: { 
+        paddingHorizontal: 8,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    },
     input: {
         flex: 1,
-        fontSize: 15,
-        maxHeight: 100,
-        paddingHorizontal: 10,
-        color: '#000',
+        fontSize: 16,
+        maxHeight: 120,
+        minHeight: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        color: '#1C1C1E',
+        fontWeight: '400',
     },
     sendButton: {
         backgroundColor: '#007AFF',
         borderRadius: 20,
-        width: 40,
-        height: 40,
+        width: 36,
+        height: 36,
         alignItems: 'center',
         justifyContent: 'center',
+        marginLeft: 8,
+        shadowColor: '#007AFF',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 4,
+    },
+    inputBarDisabled: {
+        opacity: 0.6,
+    },
+    inputDisabled: {
+        color: '#999',
     },
     
     // Forward Modal Styles
@@ -992,5 +1422,63 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: '#999',
         marginTop: 12,
+    },
+    
+    // Typing indicator styles
+    typingIndicatorContainer: {
+        marginBottom: 0,
+    },
+    typingBubble: {
+        backgroundColor: '#f0f0f0',
+        borderRadius: 18,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        maxWidth: '80%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    typingText: {
+        fontSize: 14,
+        color: '#666',
+        fontWeight: '500',
+        fontStyle: 'italic',
+    },
+    forwardingBubble: {
+        backgroundColor: '#FF9800',
+        opacity: 0.8,
+    },
+    
+    // System message styles (WhatsApp-like admin messages)
+    systemMessageContainer: {
+        alignItems: 'center',
+        marginVertical: 8,
+        paddingHorizontal: 16,
+    },
+    systemMessageBubble: {
+        backgroundColor: 'rgba(0, 0, 0, 0.05)',
+        borderRadius: 7.5,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        maxWidth: '70%',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    systemMessageText: {
+        fontSize: 9,
+        color: 'rgba(0, 0, 0, 0.6)',
+        fontWeight: '400',
+        textAlign: 'center',
+        lineHeight: 12,
+        letterSpacing: 0,
+    },
+    systemMessageTime: {
+        fontSize: 7,
+        color: 'rgba(0, 0, 0, 0.4)',
+        marginTop: 2,
+        fontWeight: '400',
+        letterSpacing: 0,
     },
 });
