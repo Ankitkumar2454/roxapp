@@ -3,6 +3,7 @@ import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -15,8 +16,10 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  useWindowDimensions,
   View
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
 
 // Updated types based on new API response
@@ -94,6 +97,11 @@ export default function SupportScreen() {
   const reconnectTimeout = useRef<number | null>(null);
   const reconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const screenHeight = useWindowDimensions().height;
+
+
+  const navigation = useNavigation();
 
   const showMessage = (type: 'success' | 'error' | 'info', message: string) => {
     setMessageType(type);
@@ -404,10 +412,7 @@ export default function SupportScreen() {
 
   const renderConversationItem = ({ item }: { item: Conversation }) => (
     <TouchableOpacity
-      style={[
-        styles.conversationItem,
-        selectedConversation?.id === item.id && styles.selectedConversation,
-      ]}
+      style={styles.conversationItem}
       onPress={() => handleConversationPress(item)}
       activeOpacity={0.7}
     >
@@ -417,28 +422,19 @@ export default function SupportScreen() {
 
       <View style={styles.conversationContent}>
         <View style={styles.conversationHeader}>
-          <View style={styles.nameContainer}>
-            <Text style={styles.customerName}>{item.customerName}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
-              <Ionicons name={getStatusIcon(item.status) as any} size={12} color={getStatusColor(item.status)} />
-              <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>
-                {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.timeAndUnread}>
-            <Text style={styles.time}>{item.lastMessageTime}</Text>
-            {item.unread > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadText}>{item.unread}</Text>
-              </View>
-            )}
-          </View>
+          <Text style={styles.customerName} numberOfLines={1}>{item.customerName}</Text>
+          <Text style={styles.time}>{item.lastMessageTime}</Text>
         </View>
-        <Text style={styles.phoneNumber}> {maskPhoneNumber(item.phoneNumber)}</Text>
-        <Text style={styles.lastMessage} numberOfLines={1}>
-          {item.direction === 'outgoing' ? 'You: ' : ''}{item.lastMessage}
-        </Text>
+        <View style={styles.conversationMessageRow}>
+          <Text style={styles.lastMessage} numberOfLines={1}>
+            {item.direction === 'outgoing' ? 'You: ' : ''}{item.lastMessage}
+          </Text>
+          {item.unread > 0 && (
+            <View style={styles.unreadBadge}>
+              <Text style={styles.unreadText}>{item.unread}</Text>
+            </View>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -446,30 +442,32 @@ export default function SupportScreen() {
   const renderMessageBubble = ({ item }: { item: Message }) => {
     const isSupport = item.sender === 'support';
     return (
-      <View style={[styles.messageBubbleContainer, isSupport ? styles.supportBubble : styles.customerBubble]}>
-        <View
-          style={[
-            styles.messageBubble,
-            isSupport ? styles.supportMessage : styles.customerMessage,
-          ]}
-        >
-          <Text style={[styles.messageText, isSupport && styles.supportMessageText]}>
+      <View style={[styles.messageRow, isSupport ? styles.messageRight : styles.messageLeft]}>
+        {!isSupport && (
+          <View style={styles.msgAvatarContainer}>
+            <View style={styles.msgAvatarPlaceholder}>
+              <Text style={styles.msgAvatarText}>{selectedConversation?.customerName?.charAt(0)?.toUpperCase()}</Text>
+            </View>
+          </View>
+        )}
+        <View style={[styles.messageBubble, isSupport ? styles.myBubble : styles.theirBubble]}>
+          <Text style={[styles.messageText, isSupport ? styles.myText : styles.theirText]}>
             {item.text}
           </Text>
           <View style={styles.messageFooter}>
-            <Text style={[styles.messageTime, isSupport ? styles.supportMessageTime : styles.customerMessageTime]}>
+            <Text style={[styles.msgTime, isSupport ? styles.myTime : styles.theirTime]}>
               {item.timestamp}
             </Text>
             {isSupport && item.status && (
               <View style={styles.messageStatusContainer}>
                 {item.status === 'sending' && (
-                  <ActivityIndicator size="small" color="#e0e0e0" style={styles.messageStatusIcon} />
+                  <ActivityIndicator size="small" color="rgba(255,255,255,0.7)" style={styles.messageStatusIcon} />
                 )}
                 {item.status === 'sent' && (
-                  <Ionicons name="checkmark-done" size={16} color="#e0e0e0" style={styles.messageStatusIcon} />
+                  <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.7)" style={styles.messageStatusIcon} />
                 )}
                 {item.status === 'failed' && (
-                  <Ionicons name="alert-circle" size={16} color="#ff6b6b" style={styles.messageStatusIcon} />
+                  <Ionicons name="alert-circle" size={14} color="#ff6b6b" style={styles.messageStatusIcon} />
                 )}
               </View>
             )}
@@ -640,6 +638,36 @@ export default function SupportScreen() {
     };
   }, []);
 
+  useEffect(() => {
+    if (selectedConversation) {
+      // Hide tab bar when chat is open
+      navigation.setOptions({
+        tabBarStyle: { display: 'none' },
+        headerShown: false
+      });
+    } else {
+      // Show tab bar when on conversation list
+      navigation.setOptions({
+        tabBarStyle: { display: 'flex' },
+        headerShown: true
+      });
+    }
+  }, [selectedConversation, navigation]);
+
+  useEffect(() => {
+    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+        setKeyboardVisible(true);
+    });
+    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+        setKeyboardVisible(false);
+    });
+
+    return () => {
+        showSubscription.remove();
+        hideSubscription.remove();
+    };
+}, []);
+
   if ((loading || !wsConnected) && conversations.length === 0) {
     return (
       <View style={styles.loadingContainer}>
@@ -650,35 +678,49 @@ export default function SupportScreen() {
   }
   return (
 
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} >
       {selectedConversation ? (
+
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={130}
+          keyboardVerticalOffset={10}
           style={{ flex: 1 }}
         >
           <View style={styles.chatHeader}>
-            <TouchableOpacity onPress={() => {
-              setSelectedConversation(null);
-              setMessages([]);
-            }}>
-              <Ionicons name="chevron-back" size={24} color="#000" />
+            <TouchableOpacity
+              onPress={() => {
+                setSelectedConversation(null);
+                setMessages([]);
+              }}
+              style={styles.backButton}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back" size={24} color="black" />
             </TouchableOpacity>
-            <View style={styles.chatHeaderContent}>
-              <Text style={styles.chatHeaderName}>{selectedConversation.customerName}</Text>
-              <Text style={styles.chatHeaderPhone}>
-                {maskPhoneNumber(selectedConversation.phoneNumber)}
-              </Text>
+            <View style={styles.headerCenter}>
+              <View style={styles.avatarContainer}>
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarText}>{selectedConversation.customerName.charAt(0).toUpperCase()}</Text>
+                </View>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={styles.friendName}>{selectedConversation.customerName}</Text>
+                <Text style={styles.statusText}>
+                  {maskPhoneNumber(selectedConversation.phoneNumber)}
+                </Text>
+              </View>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedConversation.status) + '20' }]}>
-              <Ionicons
-                name={getStatusIcon(selectedConversation.status) as any}
-                size={14}
-                color={getStatusColor(selectedConversation.status)}
-              />
-              <Text style={[styles.statusText, { color: getStatusColor(selectedConversation.status) }]}>
-                {selectedConversation.status.charAt(0).toUpperCase() + selectedConversation.status.slice(1)}
-              </Text>
+            <View style={styles.headerIcons}>
+              <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedConversation.status) + '20' }]}>
+                <Ionicons
+                  name={getStatusIcon(selectedConversation.status) as any}
+                  size={12}
+                  color={getStatusColor(selectedConversation.status)}
+                />
+                <Text style={[styles.statusText, { color: getStatusColor(selectedConversation.status) }]}>
+                  {selectedConversation.status.charAt(0).toUpperCase() + selectedConversation.status.slice(1)}
+                </Text>
+              </View>
             </View>
           </View>
           {loadingMessages ? (
@@ -701,9 +743,9 @@ export default function SupportScreen() {
                 </View>
               )}
             />
-            <View style={styles.inputContainer}>
+            <View style={[styles.inputContainer]}>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { marginBottom: keyboardVisible ? 0.34 : 0 }]}
                 placeholder="Type your response..."
                 value={inputValue}
                 onChangeText={setInputValue}
@@ -741,7 +783,6 @@ export default function SupportScreen() {
         (
           <View style={styles.mainContainer}>
             <View style={styles.listHeader}>
-              {/* <Text style={styles.headerTitle}>Support Messages</Text> */}
               <View style={styles.searchContainer}>
                 <Ionicons name="search" size={18} color="#999" />
                 <TextInput
@@ -762,7 +803,6 @@ export default function SupportScreen() {
               data={filteredConversations}
               renderItem={renderConversationItem}
               keyExtractor={(item) => item.id}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
               ListEmptyComponent={ListEmptyComponent}
               refreshControl={
                 <RefreshControl
@@ -783,7 +823,7 @@ export default function SupportScreen() {
         visible={messageVisible}
         onClose={() => setMessageVisible(false)}
       />
-    </View>
+    </SafeAreaView>
 
   );
 }
@@ -813,11 +853,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 12,
-  },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -836,14 +871,16 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     fontSize: 16,
     color: '#333',
+    marginBottom:10
   },
   conversationItem: {
     flexDirection: 'row',
-    padding: 16,
+    alignItems: 'center',
     backgroundColor: '#fff',
-  },
-  selectedConversation: {
-    backgroundColor: '#f0f8ff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e0e0e0',
   },
   avatarPlaceholder: {
     width: 50,
@@ -861,21 +898,49 @@ const styles = StyleSheet.create({
   },
   conversationContent: {
     flex: 1,
+    justifyContent: 'center',
   },
   conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  customerName: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#000',
     flex: 1,
   },
-  customerName: {
-    fontSize: 16,
+  time: {
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '400',
+  },
+  conversationMessageRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  lastMessage: {
+    fontSize: 14,
+    color: '#999',
+    flex: 1,
+    fontWeight: '400',
+  },
+  unreadBadge: {
+    backgroundColor: '#25D366',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  unreadText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: '600',
-    marginRight: 8,
   },
   statusBadge: {
     flexDirection: 'row',
@@ -888,41 +953,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     marginLeft: 4,
-  },
-  timeAndUnread: {
-    alignItems: 'flex-end',
-  },
-  time: {
-    fontSize: 12,
-    color: '#666',
-  },
-  unreadBadge: {
-    backgroundColor: '#009BFF',
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  unreadText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  phoneNumber: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#999',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginLeft: 78,
   },
   emptyContainer: {
     flex: 1,
@@ -946,27 +976,53 @@ const styles = StyleSheet.create({
   },
   chatContainer: {
     flex: 1,
+    backgroundColor: '#E9F0F7',
+    paddingTop: 10,
   },
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderRadius: 45,
+    marginHorizontal: 10,
+    marginTop: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
-  chatHeaderContent: {
-    flex: 1,
+  backButton: {
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     marginLeft: 12,
   },
-  chatHeaderName: {
-    fontSize: 18,
-    fontWeight: '600',
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginLeft: 8
   },
-  chatHeaderPhone: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
+  headerIcons: {
+    flexDirection: 'row',
+    gap: 6,
+    marginRight: 12,
+  },
+  userInfo: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  friendName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'black'
+  },
+  avatarContainer: {
+    position: 'relative',
   },
   loadingMessagesContainer: {
     flex: 1,
@@ -974,45 +1030,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   messagesList: {
-    padding: 14,
+    paddingVertical: 12,
     flexGrow: 1,
-    justifyContent: "flex-end",
+    paddingBottom: 20,
   },
-  messageBubbleContainer: {
-    marginVertical: 4,
+  messageRow: {
+    flexDirection: 'row',
+    marginVertical: 6,
+    alignItems: 'flex-end',
+    paddingHorizontal: 10,
+  },
+  messageLeft: {
+    justifyContent: 'flex-start',
     width: '100%',
   },
-  supportBubble: {
-    alignItems: 'flex-end',
+  messageRight: {
+    justifyContent: 'flex-end',
+    width: '100%',
   },
-  customerBubble: {
-    alignItems: 'flex-start',
+  msgAvatarContainer: {
+    marginRight: 8,
+  },
+  msgAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#009BFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  msgAvatarText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fff',
   },
   messageBubble: {
     maxWidth: '75%',
-    padding: 12,
-    borderRadius: 16,
-    elevation: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    elevation: 2,
   },
-  supportMessage: {
-    backgroundColor: '#009BFF',
+  myBubble: {
+    backgroundColor: '#2196F3',
     borderBottomRightRadius: 4,
   },
-  customerMessage: {
-    backgroundColor: '#f0f0f0',
+  theirBubble: {
+    backgroundColor: '#fff',
     borderBottomLeftRadius: 4,
   },
   messageText: {
     fontSize: 15,
-    color: '#000',
     lineHeight: 20,
   },
-  supportMessageText: {
+  myText: {
     color: '#fff',
+  },
+  theirText: {
+    color: '#333',
   },
   messageFooter: {
     flexDirection: 'row',
@@ -1020,14 +1099,14 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 4,
   },
-  messageTime: {
-    fontSize: 11,
-    color: '#666',
+  msgTime: {
+    fontSize: 10,
+    textAlign: 'right',
   },
-  supportMessageTime: {
-    color: 'rgba(255, 255, 255, 0.8)',
+  myTime: {
+    color: 'rgba(255,255,255,0.7)',
   },
-  customerMessageTime: {
+  theirTime: {
     color: '#999',
   },
   messageStatusContainer: {
@@ -1048,32 +1127,32 @@ const styles = StyleSheet.create({
   },
   inputContainer: {
     flexDirection: 'row',
-    padding: 12,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 10,
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
     alignItems: 'center',
-    // marginBottom: 60
-
+    backgroundColor: '#fff',
+    marginHorizontal: 10,
+    borderRadius: 25,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 3,
+    // backgroundColor: 'red',
   },
   textInput: {
     flex: 1,
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-
+    fontSize: 15,
+    maxHeight: 100,
+    paddingHorizontal: 10,
+    color: '#000',
   },
   sendButton: {
-    marginLeft: 10,
-
+    backgroundColor: '#007AFF',
     borderRadius: 20,
-    padding: 10,
-    backgroundColor: '#009BFF',
-    // justifyContent: 'center',
-    // alignItems: 'center',
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendButtonDisabled: {
     backgroundColor: '#ccc',

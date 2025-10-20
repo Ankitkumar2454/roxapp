@@ -111,38 +111,29 @@ export default function GroupsScreen() {
     <TouchableOpacity
       style={styles.groupItem}
       onPress={() => handleGroupChatNavigation(item.id)}
-      activeOpacity={0.8}
+      activeOpacity={0.7}
     >
-      <View style={styles.groupCard}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatarPlaceholder}>
-            <Image 
-              source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${getRandomColor().replace('#', '')}&fontSize=20&fontWeight=600` }}
-              style={styles.avatarImage}
-              defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${getRandomColor().replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
-            />
-          </View>
-          <View style={styles.memberCountBadge}>
-            <Ionicons name="people" size={10} color="#fff" />
-            <Text style={styles.memberCountText}>{item.memberCount}</Text>
-          </View>
+      <View style={styles.avatarContainer}>
+        <Image 
+          source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${getRandomColor().replace('#', '')}&fontSize=20&fontWeight=600` }}
+          style={styles.avatarImage}
+          defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${getRandomColor().replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
+        />
+        {/* <View style={styles.memberCountBadge}>
+          <Ionicons name="people" size={10} color="#fff" />
+          <Text style={styles.memberCountText}>{item.memberCount}</Text>
+        </View> */}
+      </View>
+
+      <View style={styles.groupContent}>
+        <View style={styles.groupHeader}>
+          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+          <Text style={styles.time}>{item.memberCount} members</Text>
         </View>
-
-        <View style={styles.groupContent}>
-          <View style={styles.groupHeader}>
-            <View style={styles.nameContainer}>
-              <Text style={styles.name}>{item.name}</Text>
-            </View>
-            <Text style={styles.time}>{item.memberCount} members</Text>
-          </View>
-
-          <View style={styles.messageRow}>
-            <Text style={styles.message} numberOfLines={1}>
-              {item.description || 'No description available'}
-            </Text>
-          </View>
-
-          <Text style={styles.username}>Created by {item.createdBy?.fullName || 'Unknown'}</Text>
+        <View style={styles.messageRow}>
+          <Text style={styles.message} numberOfLines={1}>
+            {item.description || 'No description available'}
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -151,7 +142,7 @@ export default function GroupsScreen() {
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={['#009BFF', '#0066CC']}
         style={styles.emptyIconContainer}
       >
         <Ionicons name="people-outline" size={60} color="#fff" />
@@ -166,7 +157,7 @@ export default function GroupsScreen() {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={['#009BFF', '#0066CC']}
           style={styles.addButtonGradient}
         >
           <Ionicons name="add-circle" size={20} color="#fff" />
@@ -228,7 +219,6 @@ export default function GroupsScreen() {
         data={filteredGroups}
         renderItem={renderGroupItem}
         keyExtractor={(item: any) => item.id}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={EmptyState}
         refreshControl={
           <RefreshControl
@@ -247,7 +237,7 @@ export default function GroupsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
 
   // Header Styles
@@ -279,20 +269,13 @@ const styles = StyleSheet.create({
 
   // Group Item Styles
   groupItem: {
-    marginHorizontal: 12,
-    marginVertical: 3,
-  },
-  groupCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e0e0e0',
   },
 
   // Avatar Styles
@@ -300,21 +283,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginRight: 12,
   },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 1,
-  },
   avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   memberCountBadge: {
     position: 'absolute',
@@ -339,50 +311,35 @@ const styles = StyleSheet.create({
   // Group Content Styles
   groupContent: {
     flex: 1,
+    justifyContent: 'center',
   },
   groupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-  },
-  nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    marginBottom: 4,
   },
   name: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginRight: 8,
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#000',
+    flex: 1,
   },
   time: {
     fontSize: 12,
-    color: '#95a5a6',
-    fontWeight: '500',
+    color: '#999',
+    fontWeight: '400',
   },
   messageRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
   },
   message: {
     fontSize: 14,
-    color: '#7f8c8d',
+    color: '#999',
     flex: 1,
-    lineHeight: 20,
-  },
-  username: {
-    fontSize: 12,
-    color: '#667eea',
-    fontWeight: '500',
-  },
-
-  // Separator
-  separator: {
-    height: 2,
-    backgroundColor: 'transparent',
+    fontWeight: '400',
   },
 
   // Loading Styles
@@ -390,7 +347,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
   loadingText: {
     marginTop: 16,
@@ -455,7 +412,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
   errorIconContainer: {
     marginBottom: 20,

@@ -128,14 +128,32 @@ export interface GroupData {
 }
 
 export interface Message {
+    _id?: string;
     id: string;
     senderId: string;
-    senderName: string;
+    senderName?: string;
+    sender?: {
+        _id: string;
+        username: string;
+        fullName: string;
+        profileImage?: string;
+    };
     avatar?: string;
     text: string;
+    content?: string;
     time: string;
     isSent: boolean;
     isDelivered?: boolean;
+    isRead?: boolean;
+    messageType?: 'text' | 'image' | 'voice' | 'system';
+    mediaUrl?: string;
+    mediaThumbnail?: string;
+    voiceDuration?: number;
+    readBy?: Array<{
+        user: string;
+        readAt: Date;
+    }>;
+    isSystemMessage?: boolean;
 }
 
 export interface FriendGroupChat {

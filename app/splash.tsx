@@ -7,7 +7,6 @@ const { width, height } = Dimensions.get("window");
 const images = [
   require("../assets/splash/LogoE-Chat.png"),
   require("../assets/splash/splashIcon1.png"),
-//   require("../assets/splash/splashIcon2.png"),
 ];
 
 export default function AnimatedSplashScreen({ onFinish } : any) {
