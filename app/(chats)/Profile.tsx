@@ -3,13 +3,19 @@ import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { ApiResponse, InfoItem, UserData } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
+import * as Clipboard from 'expo-clipboard';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Dimensions,
   Image,
+  SafeAreaView,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -18,14 +24,45 @@ import {
 
 
 
+const { width } = Dimensions.get('window');
+
 export default function ProfileScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
     fetchUserProfile();
   }, []);
+
+  useEffect(() => {
+    if (userData) {
+      // Start animations when data is loaded
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [userData]);
 
   const fetchUserProfile = async () => {
     try {
@@ -75,9 +112,13 @@ export default function ProfileScreen() {
     ];
   };
 
-  const handleCopyToClipboard = (text: string, label: string) => {
-    // Implement copy to clipboard functionality
-    Alert.alert(`${label} copied!`, text);
+  const handleCopyToClipboard = async (text: string, label: string) => {
+    try {
+      await Clipboard.setStringAsync(text);
+      Alert.alert('Copied!', `${label} copied to clipboard`);
+    } catch (err) {
+      Alert.alert('Error', 'Failed to copy to clipboard');
+    }
   };
 
   const handleLogout = async () => {
@@ -104,271 +145,522 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2196F3" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
+        <LinearGradient
+          colors={['#009BFF', '#0066CC']}
+          style={styles.loadingGradient}
+        >
+          <View style={styles.loadingContainer}>
+            <Animated.View style={[styles.loadingIcon, { transform: [{ scale: scaleAnim }] }]}>
+              <Ionicons name="person-circle" size={80} color="#fff" />
+            </Animated.View>
+            <Text style={styles.loadingText}>Loading profile...</Text>
+            <ActivityIndicator size="large" color="#fff" style={styles.loadingSpinner} />
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
     );
   }
 
   if (error || !userData) {
     return (
-      <View style={styles.errorContainer}>
-        <Ionicons name="alert-circle-outline" size={48} color="#FF5252" />
-        <Text style={styles.errorText}>{error || 'Failed to load profile'}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchUserProfile}>
-          <Text style={styles.retryButtonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
+        <LinearGradient
+          colors={['#009BFF', '#0066CC']}
+          style={styles.errorGradient}
+        >
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={64} color="#fff" />
+            <Text style={styles.errorText}>{error || 'Failed to load profile'}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={fetchUserProfile}>
+              <LinearGradient
+                colors={['#fff', '#f0f0f0']}
+                style={styles.retryButtonGradient}
+              >
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </SafeAreaView>
     );
   }
 
   const userInfo = getUserInfoItems();
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.content}>
-        
-        <View style={styles.profileSection}>
-          <View style={styles.avatarContainer}>
-            <Image
-              source={{ uri: userData.profileImage }}
-              style={styles.avatar}
-            />
-            <TouchableOpacity style={styles.editIconButton}>
-              <Ionicons name="pencil" size={18} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.name}>{userData.fullName}</Text>
-          <Text style={styles.username}>@{userData.username}</Text>
-        </View>
-
-       
-        <View style={styles.infoSection}>
-          {userInfo.map((info, index) => (
-            <View key={index}>
-              <View style={styles.infoRow}>
-                <View style={styles.infoLeft}>
-                  <Text style={styles.infoLabel}>{info.label}</Text>
-                  <Text style={styles.infoValue}>{info.value}</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.copyButton}
-                  onPress={() => handleCopyToClipboard(info.value, info.label)}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      
+      {/* Header Gradient */}
+      {/* <LinearGradient
+        colors={['#009BFF', '#0066CC']}
+        style={styles.headerGradient}
+      > */}
+        <Animated.View 
+          style={[
+            styles.profileSection,
+            {
+              opacity: fadeAnim,
+              transform: [
+                { translateY: slideAnim },
+                { scale: scaleAnim }
+              ]
+            }
+          ]}
+        >
+          <View style={styles.profileRow}>
+            {/* First Column - Image */}
+            <View style={styles.imageColumn}>
+              <View style={styles.avatarContainer}>
+                <LinearGradient
+                  colors={['#fff', '#f8f9fa']}
+                  style={styles.avatarGradient}
                 >
-                  <Ionicons name="copy-outline" size={20} color="#666" />
+                  <Image
+                    source={{ uri: userData.profileImage }}
+                    style={styles.avatar}
+                  />
+                </LinearGradient>
+                <TouchableOpacity style={styles.editIconButton}>
+                  <LinearGradient
+                    colors={['#009BFF', '#0066CC']}
+                    style={styles.editIconGradient}
+                  >
+                    <Ionicons name="pencil" size={16} color="#fff" />
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
-              {index < userInfo.length - 1 && (
-                <View style={styles.separator} />
-              )}
             </View>
-          ))}
-        </View>
 
-        {/* Status Section */}
-        <View style={styles.statusSection}>
-          <View style={styles.statusItem}>
-            <View style={styles.statusDot} />
-            <View style={styles.statusContent}>
-              <Text style={styles.statusLabel}>Account Status</Text>
-              <Text style={styles.statusValue}>
-                {userData.isActive ? 'Active' : 'Inactive'}
-              </Text>
-            </View>
-          </View>
-          <View style={styles.statusItem}>
-            <Ionicons name="time-outline" size={20} color="#2196F3" />
-            <View style={styles.statusContent}>
-              <Text style={styles.statusLabel}>Last Login</Text>
-              <Text style={styles.statusValue}>
-                {formatDate(userData.lastLogin)}
-              </Text>
+            {/* Second Column - Info */}
+            <View style={styles.infoColumn}>
+              <Text style={styles.name}>{userData.fullName}</Text>
+              <Text style={styles.username}>@{userData.username}</Text>
+              <Text style={styles.role}>{userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}</Text>
+              
+              {/* Status Badge */}
+              <View style={styles.statusBadge}>
+                <View style={[styles.statusDot, { backgroundColor: userData.isActive ? '#4CAF50' : '#FF5252' }]} />
+                <Text style={styles.statusText}>
+                  {userData.isActive ? 'Online' : 'Offline'}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
+        </Animated.View>
+      {/* </LinearGradient> */}
 
-       
-        <TouchableOpacity style={styles.editButton}>
-          <Ionicons name="pencil" size={20} color="#fff" />
-          <Text style={styles.editButtonText}>Edit Profile</Text>
-        </TouchableOpacity>
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <Animated.View 
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          {/* Info Cards */}
+          <View style={styles.infoSection}>
+            <Text style={styles.sectionTitle}>Profile Information</Text>
+            {userInfo.map((info, index) => (
+              <Animated.View 
+                key={index}
+                style={[
+                  styles.infoCard,
+                  {
+                    opacity: fadeAnim,
+                    transform: [
+                      { translateY: slideAnim },
+                      { scale: scaleAnim }
+                    ]
+                  }
+                ]}
+              >
+                <View style={styles.infoRow}>
+                  <View style={styles.infoLeft}>
+                    <View style={styles.infoIconContainer}>
+                      <Ionicons name={info.icon as any} size={20} color="#667eea" />
+                    </View>
+                    <View style={styles.infoContent}>
+                      <Text style={styles.infoLabel}>{info.label}</Text>
+                      <Text style={styles.infoValue}>{info.value}</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.copyButton}
+                    onPress={() => handleCopyToClipboard(info.value, info.label)}
+                  >
+                    <Ionicons name="copy-outline" size={20} color="#667eea" />
+                  </TouchableOpacity>
+                </View>
+              </Animated.View>
+            ))}
+          </View>
 
-      
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={20} color="#FF5252" />
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          {/* Activity Section */}
+          <View style={styles.activitySection}>
+            <Text style={styles.sectionTitle}>Activity</Text>
+            <View style={styles.activityCard}>
+              <View style={styles.activityItem}>
+                <View style={styles.activityIconContainer}>
+                  <Ionicons name="time-outline" size={24} color="#667eea" />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityLabel}>Last Login</Text>
+                  <Text style={styles.activityValue}>
+                    {formatDate(userData.lastLogin)}
+                  </Text>
+                </View>
+              </View>
+              
+              <View style={styles.activityDivider} />
+              
+              <View style={styles.activityItem}>
+                <View style={styles.activityIconContainer}>
+                  <Ionicons name="calendar-outline" size={24} color="#667eea" />
+                </View>
+                <View style={styles.activityContent}>
+                  <Text style={styles.activityLabel}>Member Since</Text>
+                  <Text style={styles.activityValue}>
+                    {formatDate(userData.createdAt)}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={styles.actionSection}>
+            <TouchableOpacity style={styles.editButton}>
+              <LinearGradient
+                colors={['#009BFF', '#0066CC']}
+                style={styles.buttonGradient}
+              >
+                <Ionicons name="pencil" size={18} color="#fff" />
+                <Text style={styles.editButtonText}>Edit</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+              <View style={styles.logoutButtonContent}>
+                <Ionicons name="log-out-outline" size={18} color="#e74c3c" />
+                <Text style={styles.logoutButtonText}>Logout</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F7FA',
+    backgroundColor: '#f8f9fa',
   },
-  content: {
-    padding: 20,
+  
+  // Header Styles
+  headerGradient: {
+    paddingTop: 20,
+    paddingBottom: 40,
+    paddingHorizontal: 20,
+  },
+  
+  // Loading & Error States
+  loadingGradient: {
+    flex: 1,
+  },
+  errorGradient: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F5F7FA',
+  },
+  loadingIcon: {
+    marginBottom: 20,
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 14,
-    color: '#666',
+    fontSize: 18,
+    color: '#fff',
+    fontWeight: '600',
+    marginBottom: 20,
+  },
+  loadingSpinner: {
+    marginTop: 10,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 32,
-    backgroundColor: '#F5F7FA',
   },
   errorText: {
-    fontSize: 14,
-    color: '#FF5252',
+    fontSize: 16,
+    color: '#fff',
     textAlign: 'center',
-    marginTop: 12,
-    marginBottom: 20,
+    marginTop: 20,
+    marginBottom: 30,
+    fontWeight: '500',
   },
   retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    backgroundColor: '#2196F3',
-    borderRadius: 8,
+    borderRadius: 25,
+    overflow: 'hidden',
+  },
+  retryButtonGradient: {
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 25,
   },
   retryButtonText: {
-    color: '#fff',
+    color: '#009BFF',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 16,
   },
+  
+  // Profile Section
   profileSection: {
-    alignItems: 'center',
-    marginBottom: 30,
+    backgroundColor: '#fff',
     marginTop: 20,
+    marginBottom: 15,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  profileRow: {
+    flexDirection: 'row',
+    padding: 15,
+    alignItems: 'center',
+  },
+  imageColumn: {
+    marginRight: 20,
+  },
+  infoColumn: {
+    flex: 1,
+    justifyContent: 'center',
   },
   avatarContainer: {
     position: 'relative',
-    marginBottom: 16,
+  },
+  avatarGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 4,
-    borderColor: '#fff',
+    width: 74,
+    height: 74,
+    borderRadius: 37,
   },
   editIconButton: {
     position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#2196F3',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    bottom: 2,
+    right: 2,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  editIconGradient: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: '#fff',
   },
   name: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     color: '#000',
+    marginBottom: 4,
   },
   username: {
     fontSize: 14,
     color: '#666',
-    marginTop: 4,
+    marginBottom: 6,
   },
-  infoSection: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+  role: {
+    fontSize: 13,
+    color: '#009BFF',
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 155, 255, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#009BFF',
+    fontWeight: '500',
+  },
+  
+  // Scroll Container
+  scrollContainer: {
+    flex: 1,
+    marginTop: 0,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+  },
+  
+  // Section Titles
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2c3e50',
     marginBottom: 16,
+    marginTop: 20,
+  },
+  
+  // Info Section
+  infoSection: {
+    marginBottom: 20,
+  },
+  infoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
+    padding: 20,
   },
   infoLeft: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  infoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 155, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+  },
+  infoContent: {
+    flex: 1,
   },
   infoLabel: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: 14,
+    color: '#7f8c8d',
     marginBottom: 4,
+    fontWeight: '500',
   },
   infoValue: {
-    fontSize: 15,
-    color: '#000',
-    fontWeight: '500',
+    fontSize: 16,
+    color: '#2c3e50',
+    fontWeight: '600',
   },
   copyButton: {
     padding: 8,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 155, 255, 0.1)',
   },
-  statusSection: {
+  
+  // Activity Section
+  activitySection: {
+    marginBottom: 20,
+  },
+  activityCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  statusItem: {
+  activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
   },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#4CAF50',
-    marginRight: 12,
+  activityIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 155, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
   },
-  statusContent: {
+  activityContent: {
     flex: 1,
   },
-  statusLabel: {
-    fontSize: 13,
-    color: '#666',
-    marginBottom: 2,
-  },
-  statusValue: {
+  activityLabel: {
     fontSize: 14,
-    color: '#000',
+    color: '#7f8c8d',
+    marginBottom: 4,
     fontWeight: '500',
   },
+  activityValue: {
+    fontSize: 16,
+    color: '#2c3e50',
+    fontWeight: '600',
+  },
+  activityDivider: {
+    height: 1,
+    backgroundColor: '#ecf0f1',
+    marginVertical: 8,
+  },
+  
+  // Action Section
+  actionSection: {
+    marginTop: 20,
+    flexDirection: 'row',
+    gap: 12,
+  },
   editButton: {
+    flex: 1,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#009BFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  buttonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#2196F3',
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    gap: 8,
+    paddingVertical: 18,
+    gap: 10,
   },
   editButtonText: {
     fontSize: 16,
@@ -376,17 +668,27 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   logoutButton: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#e74c3c',
+    shadowColor: '#e74c3c',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  logoutButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFF5F5',
     paddingVertical: 16,
-    borderRadius: 12,
-    gap: 8,
+    gap: 10,
   },
   logoutButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#FF5252',
+    color: '#e74c3c',
   },
 });

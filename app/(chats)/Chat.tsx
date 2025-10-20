@@ -117,38 +117,34 @@ export default function ChatScreen() {
   };
 
   const renderChatItem = ({ item }: { item: Friend }) => {
-
     return (
       <TouchableOpacity
-        style={[styles.chatItem, item.unread && styles.unreadChat]}
+        style={styles.chatItem}
         onPress={() => handleChatPress(item)}
-        activeOpacity={0.8}
+        activeOpacity={0.7}
       >
-        <View style={styles.chatCard}>
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarPlaceholder}>
-              <Image 
-                source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
-                style={styles.avatarImage}
-                defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
-              />
-            </View>
-            {/* {isOnline && <View style={styles.activeIndicator} />} */}
-          </View>
+        <View style={styles.avatarContainer}>
+          <Image 
+            source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
+            style={styles.avatarImage}
+            defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
+          />
+        </View>
 
-          <View style={styles.chatContent}>
-            <View style={styles.chatHeader}>
-              <View style={styles.nameContainer}>
-                <Text style={styles.name}>{item.name}</Text>
+        <View style={styles.chatContent}>
+          <View style={styles.chatHeader}>
+            <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+            <Text style={styles.time}>{item.lastMessageTime}</Text>
+          </View>
+          <View style={styles.messageRow}>
+            <Text style={styles.message} numberOfLines={1}>
+              {item.lastMessage}
+            </Text>
+            {item.unread && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadText}>1</Text>
               </View>
-            </View>
-            <View style={styles.messageRow}>
-              <Text style={styles.message} numberOfLines={1}>
-                {item.lastMessage}
-              </Text>
-              {item.unread && <View style={styles.unreadDot} />}
-            </View>
-            <Text style={styles.username}>@{item.username}</Text>
+            )}
           </View>
         </View>
       </TouchableOpacity>
@@ -217,7 +213,6 @@ export default function ChatScreen() {
         data={filteredFriends}
         renderItem={renderChatItem}
         keyExtractor={(item) => item.id}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={ListEmptyComponent}
         refreshControl={
           <RefreshControl
@@ -243,7 +238,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
 
   // Header Styles
@@ -299,142 +294,80 @@ const styles = StyleSheet.create({
 
   // Chat Item Styles
   chatItem: {
-    marginHorizontal: 12,
-    marginVertical: 3,
-  },
-  chatCard: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  unreadChat: {
-    backgroundColor: '#f0f4ff',
-    borderLeftWidth: 4,
-    borderLeftColor: '#667eea',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e0e0e0',
   },
 
   // Avatar Styles
   avatarContainer: {
-    position: 'relative',
     marginRight: 12,
   },
-  avatarPlaceholder: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    elevation: 1,
-  },
   avatarImage: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-  },
-  activeIndicator: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#4CAF50',
-    borderWidth: 2,
-    borderColor: '#fff',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
 
   // Chat Content Styles
   chatContent: {
     flex: 1,
+    justifyContent: 'center',
   },
   chatHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
-  },
-  nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+    marginBottom: 4,
   },
   name: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginRight: 8,
-  },
-  onlineBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#e8f5e9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4CAF50',
-    marginRight: 4,
-  },
-  onlineText: {
-    fontSize: 10,
-    color: '#4CAF50',
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#000',
+    flex: 1,
   },
   time: {
     fontSize: 12,
-    color: '#95a5a6',
-    fontWeight: '500',
+    color: '#999',
+    fontWeight: '400',
   },
   messageRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
   },
   message: {
     fontSize: 14,
-    color: '#7f8c8d',
+    color: '#999',
     flex: 1,
-    lineHeight: 20,
+    fontWeight: '400',
   },
-  username: {
-    fontSize: 12,
-    color: '#667eea',
-    fontWeight: '500',
-  },
-  unreadDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#667eea',
+  unreadBadge: {
+    backgroundColor: '#25D366',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 8,
   },
-
-  // Separator
-  separator: {
-    height: 2,
-    backgroundColor: 'transparent',
+  unreadText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
+
 
   // Loading Styles
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#fff',
   },
   loadingText: {
     marginTop: 16,

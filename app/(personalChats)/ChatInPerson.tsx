@@ -111,6 +111,16 @@ export default function ChatMessageScreen() {
         return colors[Math.floor(Math.random() * colors.length)];
     };
 
+    // Generate consistent color based on name hash
+    const getConsistentColor = (name: string): string => {
+        const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return colors[Math.abs(hash) % colors.length];
+    };
+
     // Utility function to handle forwarded message text
     const getForwardText = (originalText: string): string => {
         // Check if message is already forwarded
@@ -123,6 +133,7 @@ export default function ChatMessageScreen() {
     const fetchPreviousMessages = async (userId: string, friendId: string) => {
         try {
             const response = await api.get(`${ENDPOINTS.chat.previous_message}/${friendId}/history`);
+            console.log(response.data.data.result.messages , "response.data.data.result.messages");
             if (response.data.success && response.data.data?.result?.messages) {
                 const formattedMessages: Message[] = response.data.data.result.messages.map((msg: any) => ({
                     _id: msg._id,
@@ -134,7 +145,7 @@ export default function ChatMessageScreen() {
                     time: formatTime(msg.createdAt),
                     isSent: msg.sender._id === userId,
                     isDelivered: msg.status === 'delivered' || msg.status === 'read',
-                    isRead: msg.status === 'read',
+                    isRead: true,
                 }));
                 setMessages(formattedMessages);
                 setTimeout(() => scrollToEnd(), 300);
@@ -160,6 +171,8 @@ export default function ChatMessageScreen() {
             });
 
             socketRef.current.on('message:receive', handleIncomingMessage);
+            socketRef.current.on('message:delivered', handleMessageDelivered);
+            socketRef.current.on('message:read', handleMessageRead);
             socketRef.current.on('typing:start', (d) => {
                 setIsTyping(d.userId !== userData._id);
                 // Clear input when someone else is typing
@@ -179,18 +192,109 @@ export default function ChatMessageScreen() {
     };
 
     const handleIncomingMessage = (msg: any) => {
-        const newMsg: Message = {
-            _id: msg._id,
-            id: msg._id,
-            senderId: msg.sender._id,
-            sender: msg.sender,
-            text: msg.content,
-            content: msg.content,
-            time: formatTime(msg.createdAt),
-            isSent: false,
-        };
-        setMessages((prev) => [...prev, newMsg]);
+        setMessages((prev) => {
+            // Check if this is a message from current user (confirmation)
+            if (msg.sender._id === currentUserId) {
+                const tempMessageIndex = prev.findIndex(existingMsg => 
+                    existingMsg.senderId === currentUserId && 
+                    existingMsg.text === msg.content && 
+                    !existingMsg._id // temporary message doesn't have _id
+                );
+                
+                if (tempMessageIndex !== -1) {
+                    // Update the temporary message with server data
+                    const updatedMessages = [...prev];
+                    updatedMessages[tempMessageIndex] = {
+                        ...updatedMessages[tempMessageIndex],
+                        _id: msg._id,
+                        id: msg._id,
+                        isDelivered: true,
+                        isRead: false,
+                    };
+                    return updatedMessages;
+                }
+            }
+            
+            // Check if message already exists to prevent duplicates
+            const messageExists = prev.some(existingMsg => existingMsg._id === msg._id);
+            if (messageExists) {
+                return prev;
+            }
+            
+            const newMsg: Message = {
+                _id: msg._id,
+                id: msg._id,
+                senderId: msg.sender._id,
+                sender: msg.sender,
+                text: msg.content,
+                content: msg.content,
+                time: formatTime(msg.createdAt),
+                isSent: msg.sender._id === currentUserId,
+                isDelivered: msg.sender._id === currentUserId,
+                isRead: false,
+            };
+            
+            return [...prev, newMsg];
+        });
         scrollToEnd();
+    };
+
+    const handleMessageDelivered = (data: any) => {
+        const { messageId } = data;
+        setMessages(prev => prev.map(msg => {
+            if (msg._id === messageId) {
+                return {
+                    ...msg,
+                    isDelivered: true,
+                };
+            }
+            return msg;
+        }));
+    };
+
+    const handleMessageRead = (data: any) => {
+        const { messageId } = data;
+        setMessages(prev => prev.map(msg => {
+            if (msg._id === messageId) {
+                return {
+                    ...msg,
+                    isRead: true,
+                };
+            }
+            return msg;
+        }));
+    };
+
+
+    const markMessagesAsRead = async () => {
+        try {
+            // Get unread messages from the other user
+            const unreadMessages = messages.filter(msg => 
+                msg.senderId !== currentUserId && !msg.isRead
+            );
+            
+            if (unreadMessages.length > 0 && socketRef.current) {
+                // Emit read receipt for each unread message
+                unreadMessages.forEach(msg => {
+                    if (msg._id) {
+                        socketRef.current?.emit('message:read', {
+                            messageId: msg._id,
+                            receiverId: friendId,
+                        });
+                    }
+                });
+                
+                // Update local state
+                setMessages(prev => prev.map(msg => {
+                    if (msg.senderId !== currentUserId && !msg.isRead) {
+                        return { ...msg, isRead: true };
+                    }
+                    return msg;
+                }));
+            }
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
+        }
     };
 
     const handleSend = async () => {
@@ -233,7 +337,6 @@ export default function ChatMessageScreen() {
     const formatTime = (timestamp: string): string =>
         new Date(timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
 
-    // Forward message functions
     const handleMessageLongPress = (message: Message) => {
         setSelectedMessage(message);
         setShowForwardModal(true);
@@ -244,7 +347,6 @@ export default function ChatMessageScreen() {
         try {
             setForwardLoading(true);
             
-            // Fetch friends
             const friendsResponse = await api.get(ENDPOINTS.friends.getAll);
             if (friendsResponse.data.success && friendsResponse.data.data) {
                 const friends: ForwardContact[] = friendsResponse.data.data
@@ -286,7 +388,6 @@ export default function ChatMessageScreen() {
         if (!selectedMessage) return;
 
         try {
-            // Use utility function to handle forwarded message text
             const forwardText = getForwardText(selectedMessage.text);
             const isAlreadyForwarded = selectedMessage.text.startsWith('Forwarded: ');
             
@@ -332,7 +433,6 @@ export default function ChatMessageScreen() {
         setSelectedMessage(null);
     };
 
-    // Media handling functions
     const handleImageSelection = () => {
         // TODO: Implement image picker integration
         Alert.alert('Image Selection', 'Image picker integration will be implemented here');
@@ -674,6 +774,13 @@ export default function ChatMessageScreen() {
         };
     }, [friendId]);
 
+    // Mark messages as read when component mounts or messages change
+    useEffect(() => {
+        if (messages.length > 0 && currentUserId && !isLoading) {
+            markMessagesAsRead();
+        }
+    }, [messages, currentUserId, isLoading]);
+
     // Handle forwarded message
     useEffect(() => {
         if (forwardMessage && socketRef.current && !isLoading && forwardedMessageRef.current !== forwardMessage) {
@@ -736,7 +843,7 @@ export default function ChatMessageScreen() {
                  
                  <View style={styles.headerCenter}>
                      <View style={styles.avatarContainer}>
-                         <View style={[styles.avatarPlaceholder, { backgroundColor: getRandomColor() }]}>
+                         <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
                              <Text style={styles.avatarText}>{friendName[0]}</Text>
                          </View>
                      </View>
@@ -840,16 +947,35 @@ export default function ChatMessageScreen() {
                                                 </Text>
                                             </View>
                                         )}
-                                        <Text style={[styles.msgTime, isMe ? styles.myTime : styles.theirTime]}>
-                                            {msg.time}
-                                        </Text>
+                                        <View style={styles.messageFooter}>
+                                            <Text style={[styles.msgTime, isMe ? styles.myTime : styles.theirTime]}>
+                                                {msg.time}
+                                            </Text>
+                                            {isMe && (
+                                                <View style={styles.messageStatusContainer}>
+                                                    <Ionicons
+                                                        name={msg.isRead ? "checkmark-done" : (msg.isDelivered ? "checkmark-done" : "checkmark")}
+                                                        size={16}
+                                                        color={msg.isRead ? "#4CAF50" : (msg.isDelivered ? "#4CAF50" : "rgba(255, 255, 255, 0.6)")}
+                                                        style={styles.checkmark}
+                                                    />
+                                                </View>
+                                            )}
+                                        </View>
                                     </View>
                                 </TouchableOpacity>
                             );
                         })}
                         {isTyping && (
                             <View style={[styles.messageRow, styles.messageLeft, styles.typingIndicatorContainer]}>
-                                <Image source={{ uri: friendAvatar }} style={styles.msgAvatar} />
+                                <View style={styles.typingAvatarContainer}>
+                                    <View style={[styles.typingAvatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
+                                        <Text style={styles.typingAvatarText}>{friendName[0]}</Text>
+                                    </View>
+                                    <View style={styles.typingIconContainer}>
+                                        <Ionicons name="create-outline" size={12} color="#009BFF" />
+                                    </View>
+                                </View>
                                 <AnimatedTypingIndicator />
                             </View>
                         )}
@@ -1131,6 +1257,35 @@ const styles = StyleSheet.create({
     typingIndicatorContainer: { 
         marginBottom: 0, // Extra margin to ensure typing indicator is visible above input box
     },
+    typingAvatarContainer: {
+        position: 'relative',
+        marginRight: 8,
+    },
+    typingAvatarPlaceholder: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    typingAvatarText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#fff',
+    },
+    typingIconContainer: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        width: 16,
+        height: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: '#009BFF',
+    },
     msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
 
     messageBubble: {
@@ -1152,6 +1307,20 @@ const styles = StyleSheet.create({
     msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
     myTime: { color: 'rgba(255,255,255,0.7)' },
     theirTime: { color: '#999' },
+    messageFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 4,
+        justifyContent: 'flex-end',
+        gap: 4,
+    },
+    messageStatusContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    checkmark: {
+        marginLeft: 4,
+    },
 
     typingIndicator: {
         flexDirection: 'row',
