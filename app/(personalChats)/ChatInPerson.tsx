@@ -75,6 +75,11 @@ export default function ChatMessageScreen() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isTyping, setIsTyping] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
+    const [isInCall, setIsInCall] = useState(false);
+    const [currentCallId, setCurrentCallId] = useState<string | null>(null);
+    const [currentCallType, setCurrentCallType] = useState<'voice' | 'video' | null>(null);
+    const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'active'>('idle');
+    const [incomingCall, setIncomingCall] = useState<null | { callId: string; initiator: any; callType: 'voice' | 'video'; isGroupCall: boolean; groupId?: string | null }>(null);
     const [currentUserId, setCurrentUserId] = useState('');
 
     // Forward message states
@@ -99,6 +104,7 @@ export default function ChatMessageScreen() {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [playbackPosition, setPlaybackPosition] = useState(0);
     const [playbackDuration, setPlaybackDuration] = useState(0);
+    const [ringtone, setRingtone] = useState<Audio.Sound | null>(null);
 
     const scrollViewRef = useRef<ScrollView>(null);
     const socketRef = useRef<Socket | null>(null);
@@ -106,6 +112,43 @@ export default function ChatMessageScreen() {
     const forwardedMessageRef = useRef<string | null>(null);
     const recordingIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
     const playbackStatusRef = useRef<Audio.Sound | null>(null);
+
+    const startRingtone = async () => {
+        try {
+            await Audio.setAudioModeAsync({
+                allowsRecordingIOS: false,
+                playsInSilentModeIOS: true,
+                staysActiveInBackground: false,
+                interruptionModeIOS: 1,
+                interruptionModeAndroid: 1,
+                shouldDuckAndroid: true,
+            });
+            if (ringtone) {
+                await ringtone.stopAsync();
+                await ringtone.unloadAsync();
+                setRingtone(null);
+            }
+            const { sound: ring } = await Audio.Sound.createAsync(
+                require("../../assets/sounds/ringtone.mp3"),
+                { isLooping: true, volume: 1.0, shouldPlay: true }
+            );
+            setRingtone(ring);
+        } catch (e) {
+            console.warn('Failed to start ringtone', e);
+        }
+    };
+
+    const stopRingtone = async () => {
+        try {
+            if (ringtone) {
+                await ringtone.stopAsync();
+                await ringtone.unloadAsync();
+                setRingtone(null);
+            }
+        } catch (e) {
+            console.warn('Failed to stop ringtone', e);
+        }
+    };
 
     const friendId = params.friendId as string;
     const friendName = params.friendName as string;
@@ -179,6 +222,56 @@ export default function ChatMessageScreen() {
             socketRef.current.on('message:receive', handleIncomingMessage);
             socketRef.current.on('message:delivered', handleMessageDelivered);
             socketRef.current.on('message:read', handleMessageRead);
+            // Call events
+            socketRef.current.on('call:incoming', (data: any) => {
+                setIncomingCall({
+                    callId: data.callId,
+                    initiator: data.initiator,
+                    callType: data.callType,
+                    isGroupCall: data.isGroupCall,
+                    groupId: data.groupId,
+                });
+                setCurrentCallId(data.callId);
+                setCurrentCallType(data.callType);
+                setIsInCall(true);
+                setCallStatus('ringing');
+                startRingtone();
+            });
+            socketRef.current.on('call:initiated', (data: any) => {
+                setCurrentCallId(data.callId);
+                setCallStatus('ringing');
+                setIsInCall(true);
+            });
+            socketRef.current.on('call:answered', (_data: any) => {
+                setCallStatus('active');
+                setIncomingCall(null);
+                stopRingtone();
+            });
+            socketRef.current.on('call:ended', () => {
+                setIsInCall(false);
+                setCallStatus('idle');
+                setCurrentCallId(null);
+                setCurrentCallType(null);
+                setIncomingCall(null);
+                stopRingtone();
+            });
+            socketRef.current.on('call:error', (err: any) => {
+                Alert.alert('Call Error', err?.error || 'An error occurred with the call');
+                setIsInCall(false);
+                setCallStatus('idle');
+                setCurrentCallId(null);
+                setCurrentCallType(null);
+                setIncomingCall(null);
+                stopRingtone();
+            });
+            socketRef.current.on('call:decline', () => {
+                stopRingtone();
+                setIsInCall(false);
+                setCallStatus('idle');
+                setIncomingCall(null);
+                setCurrentCallId(null);
+                setCurrentCallType(null);
+            });
             socketRef.current.on('typing:start', (d) => {
                 setIsTyping(d.userId !== userData._id);
                 // Clear input when someone else is typing
@@ -842,40 +935,70 @@ export default function ChatMessageScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    style={styles.backButton}
-                    activeOpacity={0.7}
-                >
-                    <Ionicons name="arrow-back" size={24} color="black" />
-                </TouchableOpacity>
-
-                <View style={styles.headerCenter}>
-                    <View style={styles.avatarContainer}>
-                        <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
-                            <Text style={styles.avatarText}>{friendName[0]}</Text>
-                        </View>
-                    </View>
-                    <View style={styles.userInfo}>
-                        <Text style={styles.friendName}>{friendName}</Text>
-                        <Text style={styles.statusText}>
-                            {isTyping ? '✍️ Typing...' : '🟢 Online'}
-                        </Text>
-                    </View>
-                </View>
-
-                <View style={styles.headerIcons}>
-                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="videocam-outline" size={22} color={currentTheme.primaryText} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="call-outline" size={22} color={currentTheme.primaryText} />
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={currentTheme.primaryText} />
-                    </TouchableOpacity>
-                </View>
-            </View>
+                 <TouchableOpacity 
+                     onPress={() => router.back()}
+                     style={styles.backButton}
+                     activeOpacity={0.7}
+                 >
+                     <Ionicons name="arrow-back" size={24} color="black" />
+                 </TouchableOpacity>
+                 
+                 <View style={styles.headerCenter}>
+                     <View style={styles.avatarContainer}>
+                         <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
+                             <Text style={styles.avatarText}>{friendName[0]}</Text>
+                         </View>
+                     </View>
+                     <View style={styles.userInfo}>
+                         <Text style={styles.friendName}>{friendName}</Text>
+                         <Text style={styles.statusText}>
+                             {isTyping ? '✍️ Typing...' : '🟢 Online'}
+                         </Text>
+                     </View>
+                 </View>
+                 
+                 <View style={styles.headerIcons}>
+                    <TouchableOpacity 
+                         style={styles.headerIconButton} 
+                         activeOpacity={0.7}
+                        onPress={() => {
+                            try {
+                                if (!socketRef.current) return;
+                                socketRef.current.emit('call:initiate', {
+                                    participants: [friendId],
+                                    callType: 'video',
+                                });
+                                setCurrentCallType('video');
+                            } catch (e:any) {
+                                Alert.alert('Call Failed', e?.message || 'Unable to start video call');
+                            }
+                        }}
+                     >
+                         <Ionicons name="videocam-outline" size={22} color={currentTheme.primaryText} />
+                     </TouchableOpacity>
+                     <TouchableOpacity 
+                         style={styles.headerIconButton} 
+                         activeOpacity={0.7}
+                        onPress={() => {
+                            try {
+                                if (!socketRef.current) return;
+                                socketRef.current.emit('call:initiate', {
+                                    participants: [friendId],
+                                    callType: 'voice',
+                                });
+                                setCurrentCallType('voice');
+                            } catch (e:any) {
+                                Alert.alert('Call Failed', e?.message || 'Unable to start voice call');
+                            }
+                        }}
+                     >
+                         <Ionicons name="call-outline" size={22} color={currentTheme.primaryText} />
+                     </TouchableOpacity>
+                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                         <Ionicons name="ellipsis-vertical" size={20} color={currentTheme.primaryText} />
+                     </TouchableOpacity>
+                 </View>
+             </View>
 
             {/* Main Content with Keyboard Avoidance */}
             <KeyboardAvoidingView
@@ -1115,6 +1238,110 @@ export default function ChatMessageScreen() {
                     </View>
                 </Modal>
             </KeyboardAvoidingView>
+
+            {/* Simple In-Call Modal */}
+            <Modal
+                visible={isInCall}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => {}}
+            >
+                <View style={styles.callOverlay}>
+                    <View style={styles.callCard}>
+                        <Text style={styles.callTitle}>{currentCallType === 'video' ? 'Video Call' : 'Voice Call'}</Text>
+                        <Text style={styles.callSubtitle}>
+                            {callStatus === 'ringing' ? (incomingCall ? 'Incoming call…' : `Calling ${friendName}…`) : 'Connected'}
+                        </Text>
+                        <View style={styles.callButtonsRow}>
+                            {callStatus === 'ringing' && incomingCall && (
+                                <>
+                                    <TouchableOpacity
+                                        style={[styles.callCircleButton, { backgroundColor: '#43A047' }]}
+                                        onPress={() => {
+                                            if (!socketRef.current || !currentCallId) return;
+                                            socketRef.current.emit('call:answer', { callId: currentCallId });
+                                            setCallStatus('active');
+                                            setIncomingCall(null);
+                                            stopRingtone();
+                                        }}
+                                    >
+                                        <Ionicons name="call" size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.callCircleButton, { backgroundColor: '#E53935' }]}
+                                        onPress={() => {
+                                            if (!socketRef.current || !currentCallId) return;
+                                            socketRef.current.emit('call:decline', { callId: currentCallId });
+                                            setIsInCall(false);
+                                            setCallStatus('idle');
+                                            setCurrentCallId(null);
+                                            setCurrentCallType(null);
+                                            setIncomingCall(null);
+                                            stopRingtone();
+                                        }}
+                                    >
+                                        <Ionicons name="close" size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                </>
+                            )}
+
+                            {callStatus === 'ringing' && !incomingCall && (
+                                <TouchableOpacity
+                                    style={[styles.callCircleButton, { backgroundColor: '#E53935' }]}
+                                    onPress={() => {
+                                        if (!socketRef.current || !currentCallId) return;
+                                        socketRef.current.emit('call:end', { callId: currentCallId });
+                                    }}
+                                >
+                                    <Ionicons name="call" size={24} color="#fff" />
+                                </TouchableOpacity>
+                            )}
+
+                            {callStatus === 'active' && (
+                                <>
+                                    {currentCallType === 'video' && (
+                                        <TouchableOpacity
+                                            style={[styles.callCircleButton, { backgroundColor: '#607D8B' }]}
+                                            onPress={() => {
+                                                if (!socketRef.current || !currentCallId) return;
+                                                socketRef.current.emit('call:toggle-media', {
+                                                    callId: currentCallId,
+                                                    mediaType: 'video',
+                                                    enabled: false,
+                                                });
+                                            }}
+                                        >
+                                            <Ionicons name="videocam-off" size={24} color="#fff" />
+                                        </TouchableOpacity>
+                                    )}
+                                    <TouchableOpacity
+                                        style={[styles.callCircleButton, { backgroundColor: '#9E9E9E' }]}
+                                        onPress={() => {
+                                            if (!socketRef.current || !currentCallId) return;
+                                            socketRef.current.emit('call:toggle-media', {
+                                                callId: currentCallId,
+                                                mediaType: 'audio',
+                                                enabled: false,
+                                            });
+                                        }}
+                                    >
+                                        <Ionicons name="mic-off" size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[styles.callCircleButton, { backgroundColor: '#E53935' }]}
+                                        onPress={() => {
+                                            if (!socketRef.current || !currentCallId) return;
+                                            socketRef.current.emit('call:end', { callId: currentCallId });
+                                        }}
+                                    >
+                                        <Ionicons name="call" size={24} color="#fff" />
+                                    </TouchableOpacity>
+                                </>
+                            )}
+                        </View>
+                    </View>
+                </View>
+            </Modal>
 
             {/* Forward Message Modal */}
             <Modal
@@ -1777,5 +2004,44 @@ const createStyles = (theme: any) => StyleSheet.create({
         fontSize: 16,
         color: '#999',
         marginTop: 12,
+    },
+    // Call modal styles
+    callOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    callCard: {
+        width: '80%',
+        backgroundColor: '#1F2937',
+        borderRadius: 16,
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+        alignItems: 'center',
+    },
+    callTitle: {
+        color: '#fff',
+        fontSize: 18,
+        fontWeight: '700',
+        marginBottom: 6,
+    },
+    callSubtitle: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 14,
+        marginBottom: 16,
+    },
+    callButtonsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 16,
+        marginTop: 4,
+    },
+    callCircleButton: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });
