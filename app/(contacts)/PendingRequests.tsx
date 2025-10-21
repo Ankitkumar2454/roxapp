@@ -1,11 +1,13 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { PendingRequest } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -21,6 +23,9 @@ import {
 
 
 export default function PendingRequestsScreen() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -190,10 +195,12 @@ export default function PendingRequestsScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
-
+            <StatusBar
+                barStyle={theme === "dark" ? "light-content" : "dark-content"}
+                backgroundColor={currentTheme.background}
+            />
             <LinearGradient
-                colors={["#009BFF", "#0066CC"]}
+                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
             >
@@ -254,10 +261,10 @@ export default function PendingRequestsScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.background,
     },
     header: {
         paddingHorizontal: 16,
@@ -343,7 +350,7 @@ const styles = StyleSheet.create({
     },
     requestName: {
         fontSize: 16,
-        color: '#000',
+        color: theme.primaryText,
         fontWeight: '600',
         marginBottom: 4,
     },
@@ -354,7 +361,7 @@ const styles = StyleSheet.create({
     },
     requestTime: {
         fontSize: 12,
-        color: '#999',
+        color: theme.secondaryText,
     },
     actionButtons: {
         flexDirection: 'row',
@@ -392,12 +399,12 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 20,
         fontWeight: '600',
-        color: '#666',
+        color: theme.emptyStateText,
         marginTop: 20,
     },
     emptySubtext: {
         fontSize: 14,
-        color: '#999',
+        color: theme.emptyStateSubtext,
         marginTop: 8,
         textAlign: 'center',
         paddingHorizontal: 40,

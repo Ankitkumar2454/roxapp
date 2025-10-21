@@ -5,7 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -63,6 +66,9 @@ interface ForwardContact {
 const SOCKET_URL = ENDPOINTS.socket;
 
 export default function ChatMessageScreen() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const router = useRouter();
     const params = useLocalSearchParams();
     const [message, setMessage] = useState('');
@@ -75,7 +81,7 @@ export default function ChatMessageScreen() {
     const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'active'>('idle');
     const [incomingCall, setIncomingCall] = useState<null | { callId: string; initiator: any; callType: 'voice' | 'video'; isGroupCall: boolean; groupId?: string | null }>(null);
     const [currentUserId, setCurrentUserId] = useState('');
-    
+
     // Forward message states
     const [showForwardModal, setShowForwardModal] = useState(false);
     const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -83,14 +89,14 @@ export default function ChatMessageScreen() {
     const [forwardGroups, setForwardGroups] = useState<ForwardContact[]>([]);
     const [forwardLoading, setForwardLoading] = useState(false);
     const [isForwarding, setIsForwarding] = useState(false);
-    
+
     // Media features states
     const [showMediaOptions, setShowMediaOptions] = useState(false);
     const [isRecording, setIsRecording] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [showImagePreview, setShowImagePreview] = useState(false);
-    
+
     // Audio recording states
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [recordingUri, setRecordingUri] = useState<string | null>(null);
@@ -176,7 +182,7 @@ export default function ChatMessageScreen() {
     const fetchPreviousMessages = async (userId: string, friendId: string) => {
         try {
             const response = await api.get(`${ENDPOINTS.chat.previous_message}/${friendId}/history`);
-            console.log(response.data.data.result.messages , "response.data.data.result.messages");
+            console.log(response.data.data.result.messages, "response.data.data.result.messages");
             if (response.data.success && response.data.data?.result?.messages) {
                 const formattedMessages: Message[] = response.data.data.result.messages.map((msg: any) => ({
                     _id: msg._id,
@@ -288,12 +294,12 @@ export default function ChatMessageScreen() {
         setMessages((prev) => {
             // Check if this is a message from current user (confirmation)
             if (msg.sender._id === currentUserId) {
-                const tempMessageIndex = prev.findIndex(existingMsg => 
-                    existingMsg.senderId === currentUserId && 
-                    existingMsg.text === msg.content && 
+                const tempMessageIndex = prev.findIndex(existingMsg =>
+                    existingMsg.senderId === currentUserId &&
+                    existingMsg.text === msg.content &&
                     !existingMsg._id // temporary message doesn't have _id
                 );
-                
+
                 if (tempMessageIndex !== -1) {
                     // Update the temporary message with server data
                     const updatedMessages = [...prev];
@@ -307,13 +313,13 @@ export default function ChatMessageScreen() {
                     return updatedMessages;
                 }
             }
-            
+
             // Check if message already exists to prevent duplicates
             const messageExists = prev.some(existingMsg => existingMsg._id === msg._id);
             if (messageExists) {
                 return prev;
             }
-            
+
             const newMsg: Message = {
                 _id: msg._id,
                 id: msg._id,
@@ -326,7 +332,7 @@ export default function ChatMessageScreen() {
                 isDelivered: msg.sender._id === currentUserId,
                 isRead: false,
             };
-            
+
             return [...prev, newMsg];
         });
         scrollToEnd();
@@ -362,10 +368,10 @@ export default function ChatMessageScreen() {
     const markMessagesAsRead = async () => {
         try {
             // Get unread messages from the other user
-            const unreadMessages = messages.filter(msg => 
+            const unreadMessages = messages.filter(msg =>
                 msg.senderId !== currentUserId && !msg.isRead
             );
-            
+
             if (unreadMessages.length > 0 && socketRef.current) {
                 // Emit read receipt for each unread message
                 unreadMessages.forEach(msg => {
@@ -376,7 +382,7 @@ export default function ChatMessageScreen() {
                         });
                     }
                 });
-                
+
                 // Update local state
                 setMessages(prev => prev.map(msg => {
                     if (msg.senderId !== currentUserId && !msg.isRead) {
@@ -439,7 +445,7 @@ export default function ChatMessageScreen() {
     const fetchForwardContacts = async () => {
         try {
             setForwardLoading(true);
-            
+
             const friendsResponse = await api.get(ENDPOINTS.friends.getAll);
             if (friendsResponse.data.success && friendsResponse.data.data) {
                 const friends: ForwardContact[] = friendsResponse.data.data
@@ -483,12 +489,12 @@ export default function ChatMessageScreen() {
         try {
             const forwardText = getForwardText(selectedMessage.text);
             const isAlreadyForwarded = selectedMessage.text.startsWith('Forwarded: ');
-            
+
             console.log('Forwarding to:', contact.name, 'Type:', contact.type);
             console.log('Original message:', selectedMessage.text);
             console.log('Is already forwarded:', isAlreadyForwarded);
             console.log('Forward text:', forwardText);
-            
+
             if (contact.type === 'friend') {
                 // Forward to personal chat
                 console.log('Navigating to personal chat with:', contact.id);
@@ -513,7 +519,7 @@ export default function ChatMessageScreen() {
                     }
                 });
             }
-            
+
             setShowForwardModal(false);
             setSelectedMessage(null);
         } catch (error) {
@@ -551,11 +557,11 @@ export default function ChatMessageScreen() {
             const { recording } = await Audio.Recording.createAsync(
                 Audio.RecordingOptionsPresets.HIGH_QUALITY
             );
-            
+
             setRecording(recording);
             setIsRecording(true);
             setRecordingDuration(0);
-            
+
             // Start duration timer
             recordingIntervalRef.current = setInterval(() => {
                 setRecordingDuration(prev => prev + 1);
@@ -583,7 +589,7 @@ export default function ChatMessageScreen() {
             setRecording(null);
 
             console.log('Recording stopped and stored at', uri);
-            
+
             // Auto-send the voice message if duration > 1 second
             if (recordingDuration > 0) {
                 handleSendVoice(uri!, recordingDuration);
@@ -621,7 +627,7 @@ export default function ChatMessageScreen() {
             setSelectedImage(null);
             setShowImagePreview(false);
             scrollToEnd();
-            
+
             // TODO: Send image to backend
             console.log('Sending image:', selectedImage);
         }
@@ -657,7 +663,7 @@ export default function ChatMessageScreen() {
                 if (status.isLoaded) {
                     setPlaybackPosition(status.positionMillis || 0);
                     setPlaybackDuration(status.durationMillis || 0);
-                    
+
                     if (status.didJustFinish) {
                         setIsPlaying(false);
                         setSound(null);
@@ -689,7 +695,7 @@ export default function ChatMessageScreen() {
             };
             setMessages((prev) => [...prev, newMessage]);
             scrollToEnd();
-            
+
             // Send voice to backend via socket
             if (socketRef.current) {
                 // Convert audio file to base64 for sending
@@ -785,10 +791,10 @@ export default function ChatMessageScreen() {
                     <Text style={styles.typingText}>Typing</Text>
                 </View>
                 <View style={styles.dotsContainer}>
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.animatedDot, 
-                            { 
+                            styles.animatedDot,
+                            {
                                 opacity: dot1Anim,
                                 transform: [{
                                     scale: dot1Anim.interpolate({
@@ -797,12 +803,12 @@ export default function ChatMessageScreen() {
                                     })
                                 }]
                             }
-                        ]} 
+                        ]}
                     />
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.animatedDot, 
-                            { 
+                            styles.animatedDot,
+                            {
                                 opacity: dot2Anim,
                                 transform: [{
                                     scale: dot2Anim.interpolate({
@@ -811,12 +817,12 @@ export default function ChatMessageScreen() {
                                     })
                                 }]
                             }
-                        ]} 
+                        ]}
                     />
-                    <Animated.View 
+                    <Animated.View
                         style={[
-                            styles.animatedDot, 
-                            { 
+                            styles.animatedDot,
+                            {
                                 opacity: dot3Anim,
                                 transform: [{
                                     scale: dot3Anim.interpolate({
@@ -825,7 +831,7 @@ export default function ChatMessageScreen() {
                                     })
                                 }]
                             }
-                        ]} 
+                        ]}
                     />
                 </View>
             </View>
@@ -880,7 +886,7 @@ export default function ChatMessageScreen() {
             forwardedMessageRef.current = forwardMessage;
             setIsForwarding(true);
             console.log('Forwarding message:', forwardMessage);
-            
+
             // Auto-send the forwarded message
             setTimeout(() => {
                 if (socketRef.current && currentUserId) {
@@ -893,7 +899,7 @@ export default function ChatMessageScreen() {
                         time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                         isSent: true,
                     };
-                    
+
                     setMessages((prev) => [...prev, newMessage]);
                     setMessage('');
                     scrollToEnd();
@@ -903,7 +909,7 @@ export default function ChatMessageScreen() {
                         content: forwardMessage,
                         messageType: 'text',
                     });
-                    
+
                     console.log('Message forwarded successfully');
                     setIsForwarding(false);
                 }
@@ -922,8 +928,11 @@ export default function ChatMessageScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} />
-            
+            <StatusBar
+                barStyle={theme === "dark" ? "light-content" : "dark-content"}
+                backgroundColor={currentTheme.background}
+            />
+
             {/* Header */}
             <View style={styles.header}>
                  <TouchableOpacity 
@@ -992,21 +1001,21 @@ export default function ChatMessageScreen() {
              </View>
 
             {/* Main Content with Keyboard Avoidance */}
-            <KeyboardAvoidingView 
+            <KeyboardAvoidingView
                 style={styles.keyboardAvoidingContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
             >
                 {/* Messages */}
                 <View style={styles.chatContainer}>
-                    <ScrollView 
-                        ref={scrollViewRef} 
+                    <ScrollView
+                        ref={scrollViewRef}
                         contentContainerStyle={[styles.chatScroll, { paddingBottom: 20 }]}
                         showsVerticalScrollIndicator={false}
                         keyboardShouldPersistTaps="handled"
                         nestedScrollEnabled={true}
                     >
-                        {                        messages.map((msg) => {
+                        {messages.map((msg) => {
                             const isMe = msg.senderId === currentUserId;
                             return (
                                 <TouchableOpacity
@@ -1019,8 +1028,8 @@ export default function ChatMessageScreen() {
                                     <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
                                         {msg.messageType === 'image' ? (
                                             <View style={styles.imageMessageContainer}>
-                                                <Image 
-                                                    source={{ uri: msg.mediaUrl }} 
+                                                <Image
+                                                    source={{ uri: msg.mediaUrl }}
                                                     style={styles.messageImage}
                                                     resizeMode="cover"
                                                 />
@@ -1030,14 +1039,14 @@ export default function ChatMessageScreen() {
                                             </View>
                                         ) : msg.messageType === 'voice' ? (
                                             <View style={styles.voiceMessageContainer}>
-                                                <TouchableOpacity 
+                                                <TouchableOpacity
                                                     style={styles.voicePlayButton}
                                                     onPress={() => msg.mediaUrl && playVoiceMessage(msg.mediaUrl)}
                                                 >
-                                                    <Ionicons 
-                                                        name={isPlaying && sound ? "pause" : "play"} 
-                                                        size={20} 
-                                                        color={isMe ? "#fff" : "#2196F3"} 
+                                                    <Ionicons
+                                                        name={isPlaying && sound ? "pause" : "play"}
+                                                        size={20}
+                                                        color={isMe ? "#fff" : "#2196F3"}
                                                     />
                                                 </TouchableOpacity>
                                                 <View style={styles.voiceWaveform}>
@@ -1055,10 +1064,10 @@ export default function ChatMessageScreen() {
                                             <View style={styles.messageContentContainer}>
                                                 {msg.text.startsWith('Forwarded: ') && (
                                                     <View style={styles.forwardedMessageHeader}>
-                                                        <Ionicons 
-                                                            name="arrow-forward" 
-                                                            size={14} 
-                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"} 
+                                                        <Ionicons
+                                                            name="arrow-forward"
+                                                            size={14}
+                                                            color={isMe ? "rgba(255,255,255,0.7)" : "#666"}
                                                         />
                                                         <Text style={[styles.forwardedLabel, isMe ? styles.myForwardedLabel : styles.theirForwardedLabel]}>
                                                             Forwarded
@@ -1116,7 +1125,7 @@ export default function ChatMessageScreen() {
 
                 {/* Input */}
                 <View style={styles.inputBar}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.iconButton}
                         onPress={() => setShowMediaOptions(!showMediaOptions)}
                     >
@@ -1161,13 +1170,13 @@ export default function ChatMessageScreen() {
                     animationType="slide"
                     onRequestClose={() => setShowMediaOptions(false)}
                 >
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.mediaModalOverlay}
                         activeOpacity={1}
                         onPress={() => setShowMediaOptions(false)}
                     >
                         <View style={styles.mediaOptionsContainer}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.mediaOption}
                                 onPress={handleImageSelection}
                                 activeOpacity={0.7}
@@ -1177,8 +1186,8 @@ export default function ChatMessageScreen() {
                                 </View>
                                 <Text style={styles.mediaOptionText}>Photo</Text>
                             </TouchableOpacity>
-                            
-                            <TouchableOpacity 
+
+                            <TouchableOpacity
                                 style={styles.mediaOption}
                                 onPress={handleVoiceRecording}
                                 activeOpacity={0.7}
@@ -1202,14 +1211,14 @@ export default function ChatMessageScreen() {
                     <View style={styles.imagePreviewOverlay}>
                         <View style={styles.imagePreviewContainer}>
                             {selectedImage && (
-                                <Image 
-                                    source={{ uri: selectedImage }} 
+                                <Image
+                                    source={{ uri: selectedImage }}
                                     style={styles.previewImage}
                                     resizeMode="contain"
                                 />
                             )}
                             <View style={styles.imagePreviewActions}>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.previewCancelButton}
                                     onPress={() => {
                                         setSelectedImage(null);
@@ -1218,7 +1227,7 @@ export default function ChatMessageScreen() {
                                 >
                                     <Ionicons name="close" size={24} color="#fff" />
                                 </TouchableOpacity>
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     style={styles.previewSendButton}
                                     onPress={handleSendImage}
                                 >
@@ -1412,76 +1421,107 @@ export default function ChatMessageScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#E9F0F7' },
-    loadingWrapper: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-    keyboardAvoidingContainer: { 
+const createStyles = (theme: any) => StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: theme.background,
+    },
+    loadingWrapper: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center'
+    },
+    keyboardAvoidingContainer: {
         flex: 1,
     },
-    chatContainer: { 
-        flex: 1, 
-        marginTop: 10, // Space between header and chat
-        backgroundColor: '#E9F0F7',
-        paddingBottom: 10, // Add padding to ensure typing indicator is visible
+    chatContainer: {
+        flex: 1,
+        marginTop: 8,
+        backgroundColor: theme.cardBackground,
+        borderWidth: 1,
+        borderColor: theme.inputBorder,
+        borderRadius: 12,
+        marginHorizontal: 10,
+        marginBottom: 2,
     },
 
-     header: {
-         flexDirection: 'row',
-         alignItems: 'center',
-         justifyContent: 'space-between',
-         paddingVertical: 10,
-         paddingHorizontal: 0,
-         marginHorizontal: 10,
-         marginTop: 20, // Top margin for status bar
-         backgroundColor: '#fff',
-         borderRadius: 45,
-         elevation: 4,
-         shadowColor: '#000',
-         shadowOffset: { width: 0, height: 3 },
-         shadowOpacity: 0.15,
-         shadowRadius: 6,
-         zIndex: 1000, // Ensure header stays on top
-     },
-     backButton: {
-         padding: 6,
-         borderRadius: 16,
-         backgroundColor: 'rgba(255,255,255,0.2)',
-         marginLeft: 12,
-     },
-     headerCenter: { 
-         flexDirection: 'row', 
-         alignItems: 'center', 
-         flex: 1, 
-         marginLeft: 8 
-     },
-     headerIcons: { 
-         flexDirection: 'row', 
-         gap: 6,
-         marginRight: 12,
-     },
-     headerIconButton: {
-         padding: 6,
-         borderRadius: 12,
-         backgroundColor: 'rgba(255,255,255,0.2)',
-     },
-     userInfo: {
-         flex: 1,
-         marginLeft: 8,
-     },
-     avatar: { width: 32, height: 32, borderRadius: 16 },
-     friendName: { fontSize: 14, fontWeight: '600', color: 'black' },
-     statusText: { fontSize: 11, color: 'gray' },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 10,
+        paddingHorizontal: 0,
+        marginHorizontal: 10,
+        marginTop: 20, // Top margin for status bar
+        backgroundColor: theme.background,
+        borderRadius: 45,
+        elevation: 4,
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.15,
+        shadowRadius: 6,
+        borderWidth: 1,
+        borderColor: theme.inputBorder,
+        zIndex: 1000, // Ensure header stays on top
+    },
+    backButton: {
+        padding: 6,
+        borderRadius: 16,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        marginLeft: 12,
+    },
+    headerCenter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginLeft: 8
+    },
+    headerIcons: {
+        flexDirection: 'row',
+        gap: 6,
+        marginRight: 12,
+    },
+    headerIconButton: {
+        padding: 6,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+    },
+    userInfo: {
+        flex: 1,
+        marginLeft: 8,
+    },
+    avatar: { width: 32, height: 32, borderRadius: 16 },
+    friendName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: theme.primaryText
+    },
+    statusText: {
+        fontSize: 11,
+        color: theme.secondaryText,
+        marginTop: 2
+    },
 
-    chatScroll: { 
+    chatScroll: {
         flexGrow: 1,
-        paddingVertical: 12, 
+        paddingVertical: 12,
         paddingHorizontal: 10,
         paddingBottom: 20, // Extra padding at bottom
     },
-    messageRow: { flexDirection: 'row', marginVertical: 6, alignItems: 'flex-end' },
-    messageLeft: { justifyContent: 'flex-start' },
-    messageRight: { justifyContent: 'flex-end', alignSelf: 'flex-end' },
-    typingIndicatorContainer: { 
+    messageRow: {
+        flexDirection: 'row',
+        marginVertical: 6,
+        alignItems: 'flex-end'
+    },
+    messageLeft: {
+        justifyContent: 'flex-start'
+
+    },
+    messageRight: {
+        justifyContent: 'flex-end',
+        alignSelf: 'flex-end'
+    },
+    typingIndicatorContainer: {
         marginBottom: 0, // Extra margin to ensure typing indicator is visible above input box
     },
     typingAvatarContainer: {
@@ -1498,7 +1538,7 @@ const styles = StyleSheet.create({
     typingAvatarText: {
         fontSize: 12,
         fontWeight: '600',
-        color: '#fff',
+        color: theme.secondaryText,
     },
     typingIconContainer: {
         position: 'absolute',
@@ -1520,13 +1560,20 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        shadowColor: '#000',
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 2,
     },
-    myBubble: { backgroundColor: '#2196F3', borderBottomRightRadius: 4 },
-    theirBubble: { backgroundColor: '#fff', borderBottomLeftRadius: 4 },
+    myBubble: {
+        backgroundColor: '#2196F3',
+        borderBottomRightRadius: 4
+    },
+    theirBubble: {
+        backgroundColor: '#fff',
+        borderBottomLeftRadius: 4
+    },
     forwardingBubble: { backgroundColor: '#FF9800', opacity: 0.8 },
     messageText: { fontSize: 15 },
     myText: { color: '#fff' },
@@ -1586,16 +1633,18 @@ const styles = StyleSheet.create({
     inputBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
+        backgroundColor: theme.cardBackground,
         marginHorizontal: 10,
         marginBottom: 10,
         borderRadius: 25,
         paddingHorizontal: 10,
         paddingVertical: 6,
-        shadowColor: '#000',
+        shadowColor: theme.shadowColor,
         shadowOpacity: 0.05,
         shadowRadius: 3,
-        elevation: 3,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: theme.inputBorder,
     },
     iconButton: { paddingHorizontal: 6 },
     input: {
@@ -1603,7 +1652,7 @@ const styles = StyleSheet.create({
         fontSize: 15,
         maxHeight: 100,
         paddingHorizontal: 10,
-        color: '#000',
+        color: theme.inputText,
     },
     sendButton: {
         backgroundColor: '#007AFF',
@@ -1802,32 +1851,32 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     avatarContainer: {
-         position: 'relative',
+        position: 'relative',
     },
     avatarPlaceholder: {
-         width: 32,
-         height: 32,
-         borderRadius: 16,
-         alignItems: 'center',
-         justifyContent: 'center',
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     avatarText: {
-         fontSize: 14,
-         fontWeight: '600',
-         color: '#fff',
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#fff',
     },
     activeIndicator: {
-         position: 'absolute',
-         bottom: 2,
-         right: 2,
-         width: 12,
-         height: 12,
-         borderRadius: 6,
-         backgroundColor: '#4CAF50',
-         borderWidth: 2,
-         borderColor: '#fff',
+        position: 'absolute',
+        bottom: 2,
+        right: 2,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: '#4CAF50',
+        borderWidth: 2,
+        borderColor: '#fff',
     },
-    
+
     // Forward Modal Styles
     modalOverlay: {
         flex: 1,
@@ -1835,7 +1884,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     forwardModal: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.cardBackground,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         maxHeight: '80%',
@@ -1848,15 +1897,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#E0E0E0',
+        borderBottomColor: theme.inputBorder,
     },
     forwardModalTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333',
+        color: theme.secondaryText,
     },
     selectedMessagePreview: {
-        backgroundColor: '#F5F5F5',
+        backgroundColor: theme.containerBackground,
         marginHorizontal: 20,
         marginVertical: 12,
         paddingHorizontal: 16,
@@ -1873,7 +1922,7 @@ const styles = StyleSheet.create({
     },
     messagePreviewLabel: {
         fontSize: 12,
-        color: '#666',
+        color:theme.secondaryText,
         fontWeight: '600',
     },
     forwardedBadge: {
@@ -1887,12 +1936,12 @@ const styles = StyleSheet.create({
     },
     forwardedBadgeText: {
         fontSize: 10,
-        color: '#fff',
+        color: theme.primaryText,
         fontWeight: '600',
     },
     selectedMessageText: {
         fontSize: 14,
-        color: '#666',
+        color: theme.secondaryText,
         fontStyle: 'italic',
     },
     forwardLoadingContainer: {
@@ -1915,7 +1964,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
+        borderBottomColor: theme.inputBorder,
     },
     forwardContactAvatar: {
         marginRight: 12,
@@ -1938,12 +1987,12 @@ const styles = StyleSheet.create({
     forwardContactName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#333',
+        color: theme.secondaryText,
         marginBottom: 2,
     },
     forwardContactType: {
         fontSize: 12,
-        color: '#666',
+        color:  theme.tertiaryText,
     },
     forwardEmptyContainer: {
         flex: 1,
