@@ -36,7 +36,7 @@ const ENDPOINTS = {
     previous_message: "api/messages/messages",
     markAsRead: "/api/messages/",
   },
-  socket: "ws://192.168.0.222:8000",
+  socket: "wss://polobet247.in",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory:"/api/whatsapp-messages/history"

@@ -2,11 +2,13 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { GroupData, Member } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -32,6 +34,9 @@ interface Friend {
 }
 
 export default function GroupInfoScreen() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const router = useRouter();
     const params = useLocalSearchParams();
     const groupId = params.groupId as string;
@@ -290,7 +295,7 @@ export default function GroupInfoScreen() {
 
     const isCreator = () => {
         if (!groupData || !currentUser) return false;
-        console.log(groupData.createdBy._id , currentUser , "harsh"
+        console.log(groupData.createdBy._id, currentUser, "harsh"
         )
         return currentUser.id === groupData?.createdBy._id;
     }
@@ -568,7 +573,7 @@ export default function GroupInfoScreen() {
                         <TextInput
                             style={styles.searchInput}
                             placeholder="Search friends..."
-                            placeholderTextColor="#999"
+                              placeholderTextColor={currentTheme.placeholderText}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                         />
@@ -617,15 +622,16 @@ export default function GroupInfoScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: theme.background,
     },
     loadingText: {
         marginTop: 12,
@@ -900,9 +906,9 @@ const styles = StyleSheet.create({
         marginVertical: 16,
         paddingHorizontal: 12,
         borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderColor:  theme.shadowColor,
         borderRadius: 12,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: theme.searchBackground,
     },
     searchIcon: {
         marginRight: 8,
@@ -911,7 +917,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 15,
-        color: '#000',
+        color:  theme.searchInputText,
     },
     emptyContainer: {
         flex: 1,

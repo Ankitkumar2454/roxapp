@@ -1,11 +1,13 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { FriendGroupChat } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -35,6 +37,9 @@ export default function CreateGroupScreen() {
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
 
     useEffect(() => {
         if (showMemberModal) {
@@ -56,7 +61,7 @@ export default function CreateGroupScreen() {
         try {
             setLoadingFriends(true);
             const res = await api.get(ENDPOINTS.friends.getAll);
-            
+
             if (res.data.success && res.data.data) {
                 const friendsList = res.data.data.filter(
                     (friend: FriendGroupChat) => !selectedMembers.find((m) => m._id === friend._id)
@@ -195,7 +200,7 @@ export default function CreateGroupScreen() {
             style={styles.container}
         >
             <LinearGradient
-                colors={['#009BFF', '#0066CC']}
+                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
@@ -217,7 +222,7 @@ export default function CreateGroupScreen() {
                 {/* Group Icon Placeholder */}
                 <View style={styles.groupIconSection}>
                     <View style={styles.groupIconPlaceholder}>
-                        <Ionicons name="people" size={48} color="#009BFF" />
+                        <Ionicons name="people" size={48} color={currentTheme.iconColor} />
                     </View>
                     <Text style={styles.groupIconHint}>Group Icon</Text>
                 </View>
@@ -228,11 +233,11 @@ export default function CreateGroupScreen() {
                         Group Name <Text style={styles.required}>*</Text>
                     </Text>
                     <View style={styles.inputWrapper}>
-                        <Ionicons name="chatbubbles" size={20} color="#009BFF" style={styles.inputIcon} />
+                        <Ionicons name="chatbubbles" size={20} style={styles.inputIcon} />
                         <TextInput
                             style={styles.input}
                             placeholder="Enter group name"
-                            placeholderTextColor="#999"
+                            placeholderTextColor={currentTheme.placeholderText}
                             value={groupName}
                             onChangeText={setGroupName}
                             maxLength={50}
@@ -245,11 +250,11 @@ export default function CreateGroupScreen() {
                 <View style={styles.section}>
                     <Text style={styles.sectionLabel}>Description (Optional)</Text>
                     <View style={styles.inputWrapper}>
-                        <Ionicons name="information-circle" size={20} color="#009BFF" style={styles.inputIcon} />
+                        <Ionicons name="information-circle" size={20} style={styles.inputIcon} />
                         <TextInput
                             style={[styles.input, styles.textArea]}
                             placeholder="What's this group about?"
-                            placeholderTextColor="#999"
+                            placeholderTextColor={currentTheme.placeholderText}
                             value={groupDescription}
                             onChangeText={setGroupDescription}
                             maxLength={200}
@@ -292,7 +297,7 @@ export default function CreateGroupScreen() {
                         onPress={() => setShowMemberModal(true)}
                     >
                         <LinearGradient
-                            colors={['#009BFF', '#0066CC']}
+                            colors={[currentTheme.buttonGradientStart, currentTheme.buttonGradientEnd]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={styles.addMembersButtonGradient}
@@ -315,9 +320,9 @@ export default function CreateGroupScreen() {
                     disabled={!groupName.trim() || selectedMembers.length < 1 || loadingCreate}
                 >
                     <LinearGradient
-                        colors={(!groupName.trim() || selectedMembers.length < 1) 
-                            ? ['#CCC', '#999'] 
-                            : ['#4CAF50', '#45A049']}
+                        colors={(!groupName.trim() || selectedMembers.length < 1)
+                            ? [currentTheme.inactiveGradientStart, currentTheme.inactiveGradientEnd]
+                            : [currentTheme.activeGradientStart, currentTheme.activeGradientEnd]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.createButtonGradient}
@@ -343,7 +348,7 @@ export default function CreateGroupScreen() {
             >
                 <View style={styles.modalContainer}>
                     <LinearGradient
-                        colors={['#009BFF', '#0066CC']}
+                         colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.modalHeader}
@@ -366,11 +371,11 @@ export default function CreateGroupScreen() {
 
                     {/* Search Bar */}
                     <View style={styles.searchContainer}>
-                        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                        <Ionicons name="search" size={20} color={currentTheme.iconColor} style={styles.searchIcon} />
                         <TextInput
                             style={styles.searchInput}
                             placeholder="Search friends..."
-                            placeholderTextColor="#999"
+                           placeholderTextColor={currentTheme.placeholderText}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                         />
@@ -394,8 +399,8 @@ export default function CreateGroupScreen() {
                                 {searchQuery ? 'No friends found' : 'No friends available'}
                             </Text>
                             <Text style={styles.emptySubtext}>
-                                {searchQuery 
-                                    ? 'Try a different search term' 
+                                {searchQuery
+                                    ? 'Try a different search term'
                                     : 'All friends have been added'}
                             </Text>
                         </View>
@@ -421,10 +426,10 @@ export default function CreateGroupScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.background,
     },
     header: {
         paddingTop: 50,
@@ -469,7 +474,7 @@ const styles = StyleSheet.create({
     },
     groupIconHint: {
         fontSize: 12,
-        color: '#999',
+        color: theme.secondaryText,
         marginTop: 8,
     },
     section: {
@@ -483,18 +488,19 @@ const styles = StyleSheet.create({
     sectionLabel: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#333',
+        color: theme.primaryText,
         marginBottom: 8,
     },
     required: {
         color: '#FF3B30',
     },
     memberCountBadge: {
-        backgroundColor: '#009BFF',
-        paddingHorizontal: 10,
+        backgroundColor: theme.iconColor,
+        paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
         marginLeft: 8,
+        marginBottom: 5
     },
     memberCountText: {
         fontSize: 12,
@@ -505,19 +511,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderColor: theme.inputBorder,
         borderRadius: 12,
         paddingHorizontal: 12,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: theme.cardBackground,
     },
     inputIcon: {
         marginRight: 10,
+        color: theme.iconColor
     },
     input: {
         flex: 1,
         paddingVertical: 12,
         fontSize: 16,
-        color: '#000',
+        color: theme.inputText,
     },
     textArea: {
         paddingTop: 12,
@@ -527,34 +534,34 @@ const styles = StyleSheet.create({
     },
     charCount: {
         fontSize: 12,
-        color: '#999',
+        color: theme.inputText,
         marginLeft: 8,
     },
     charCountRight: {
         fontSize: 12,
-        color: '#999',
+        color: theme.inputText,
         textAlign: 'right',
         marginTop: 4,
     },
     noMembersContainer: {
         alignItems: 'center',
         paddingVertical: 40,
-        backgroundColor: '#F8F8F8',
+        backgroundColor: theme.cardBackground,
         borderRadius: 12,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: '#E0E0E0',
+        borderColor: theme.inputBorder,
         borderStyle: 'dashed',
     },
     noMembersText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#666',
+        color: theme.secondaryText,
         marginTop: 12,
     },
     noMembersSubtext: {
         fontSize: 13,
-        color: '#999',
+        color: theme.tertiaryText,
         marginTop: 4,
     },
     selectedMembersList: {
@@ -563,13 +570,13 @@ const styles = StyleSheet.create({
     selectedMemberItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F0F8FF',
+        backgroundColor: theme.cardBackground,
         borderRadius: 12,
         paddingHorizontal: 12,
         paddingVertical: 12,
         marginBottom: 8,
         borderWidth: 1.5,
-        borderColor: '#009BFF',
+        borderColor: theme.inputBorder,
     },
     selectedMemberAvatar: {
         width: 44,
@@ -583,7 +590,7 @@ const styles = StyleSheet.create({
     selectedMemberName: {
         fontSize: 15,
         fontWeight: '600',
-        color: '#000',
+        color: theme.primaryText,
         marginBottom: 2,
     },
     selectedMemberUsername: {
@@ -618,14 +625,15 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         paddingBottom: 24,
-        backgroundColor: '#fff',
-        borderTopWidth: 1,
-        borderTopColor: '#E0E0E0',
-        shadowColor: '#000',
+        backgroundColor: theme.cardBackground,
+        borderTopWidth: 2,
+        borderTopColor: theme.inputBorder,
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
         shadowRadius: 4,
         elevation: 5,
+        borderRadius: 14,
     },
     createButton: {
         borderRadius: 14,
@@ -648,7 +656,7 @@ const styles = StyleSheet.create({
     },
     modalContainer: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.containerBackground,
     },
     modalHeader: {
         paddingTop: 50,
@@ -685,9 +693,12 @@ const styles = StyleSheet.create({
         marginBottom: 12,
         paddingHorizontal: 12,
         borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderColor:  theme.inputBorder,
         borderRadius: 12,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: theme.searchBackground,
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 3,
     },
     searchIcon: {
         marginRight: 8,
@@ -696,12 +707,13 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 15,
-        color: '#000',
+        color:theme.searchInputText,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+         backgroundColor: theme.background,
     },
     loadingText: {
         marginTop: 12,
@@ -717,12 +729,12 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#666',
+        color: theme.emptyStateText,
         marginTop: 16,
     },
     emptySubtext: {
         fontSize: 14,
-        color: '#999',
+        color: theme.emptyStateSubtext,
         marginTop: 8,
         textAlign: 'center',
     },
@@ -761,7 +773,7 @@ const styles = StyleSheet.create({
     friendName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#000',
+        color: theme.primaryText,
         marginBottom: 2,
     },
     friendUsername: {
@@ -773,7 +785,7 @@ const styles = StyleSheet.create({
     },
     separator: {
         height: 1,
-        backgroundColor: '#E0E0E0',
+        backgroundColor: theme.inputBorder,
         marginLeft: 76,
     },
 });

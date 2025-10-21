@@ -4,7 +4,9 @@ import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useContext } from 'react';
+import { ThemeProvider, ThemeContext } from "@/src/services/ThemeContext";
+import { lightTheme, darkTheme } from "@/src/constants/color";
 import {
   ActivityIndicator,
   FlatList,
@@ -99,6 +101,11 @@ export default function SupportScreen() {
   const maxReconnectAttempts = 5;
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const screenHeight = useWindowDimensions().height;
+
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+  const styles = createStyles(currentTheme);
+
 
 
   const navigation = useNavigation();
@@ -648,7 +655,19 @@ export default function SupportScreen() {
     } else {
       // Show tab bar when on conversation list
       navigation.setOptions({
-        tabBarStyle: { display: 'flex' },
+        tabBarStyle: {
+          backgroundColor: currentTheme.cardBackground,
+          borderTopLeftRadius: 20,
+          borderTopRightRadius: 20,
+          // paddingBottom: 8,
+          shadowColor: currentTheme.shadowColor,
+          // shadowOffset: { width: 0, height: -2 },
+          // shadowOpacity: 0.1,
+          shadowRadius: 8,
+          borderWidth: 1,
+          borderColor: currentTheme.chatItemBorder,
+          elevation: 5,
+        },
         headerShown: true
       });
     }
@@ -656,17 +675,17 @@ export default function SupportScreen() {
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
-        setKeyboardVisible(true);
+      setKeyboardVisible(true);
     });
     const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
-        setKeyboardVisible(false);
+      setKeyboardVisible(false);
     });
 
     return () => {
-        showSubscription.remove();
-        hideSubscription.remove();
+      showSubscription.remove();
+      hideSubscription.remove();
     };
-}, []);
+  }, []);
 
   if ((loading || !wsConnected) && conversations.length === 0) {
     return (
@@ -745,8 +764,9 @@ export default function SupportScreen() {
             />
             <View style={[styles.inputContainer]}>
               <TextInput
-                style={[styles.textInput, { marginBottom: keyboardVisible ? 0.34 : 0 }]}
+                style={[styles.textInput, { marginBottom: keyboardVisible ? 0.34 : 1 }]}
                 placeholder="Type your response..."
+                placeholderTextColor={currentTheme.placeholderText}
                 value={inputValue}
                 onChangeText={setInputValue}
                 multiline
@@ -788,6 +808,7 @@ export default function SupportScreen() {
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Search by name or number..."
+                  placeholderTextColor={currentTheme.placeholderText}
                   value={searchTerm}
                   onChangeText={setSearchTerm}
                 />
@@ -828,16 +849,17 @@ export default function SupportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
 
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: theme.background,
   },
   loadingText: {
     marginTop: 10,
@@ -848,19 +870,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listHeader: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingHorizontal: 20,
+    paddingVertical: 10
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.searchBackground,
     borderRadius: 25,
     paddingHorizontal: 16,
     height: 50,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -870,17 +890,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: '#333',
-    marginBottom:10
+    color: theme.searchInputText,
   },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.chatItemBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
+    marginVertical: 1,
+    borderBottomColor: theme.chatItemBorder,
+    elevation: 2
   },
   avatarPlaceholder: {
     width: 50,
@@ -909,12 +930,12 @@ const styles = StyleSheet.create({
   customerName: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#000',
+    color: theme.primaryText,
     flex: 1,
   },
   time: {
     fontSize: 12,
-    color: '#999',
+    color: theme.tertiaryText,
     fontWeight: '400',
   },
   conversationMessageRow: {
@@ -924,12 +945,12 @@ const styles = StyleSheet.create({
   },
   lastMessage: {
     fontSize: 14,
-    color: '#999',
+    color: theme.tertiaryText,
     flex: 1,
     fontWeight: '400',
   },
   unreadBadge: {
-    backgroundColor: '#25D366',
+    backgroundColor: theme.unreadBadgeBackground,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -953,6 +974,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '500',
     marginLeft: 4,
+    color: theme.secondaryText,
   },
   emptyContainer: {
     flex: 1,
@@ -963,37 +985,36 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#666',
+    color: theme.emptyStateText,
     marginTop: 16,
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#999',
+    color: theme.emptyStateSubtext,
     marginTop: 8,
   },
   emptyListContent: {
     flex: 1,
   },
-  chatContainer: {
-    flex: 1,
-    backgroundColor: '#E9F0F7',
-    paddingTop: 10,
-  },
+
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#fff',
+    backgroundColor: theme.chatItemBackground,
     borderRadius: 45,
     marginHorizontal: 10,
     marginTop: 20,
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+
   },
   backButton: {
     padding: 6,
@@ -1019,7 +1040,7 @@ const styles = StyleSheet.create({
   friendName: {
     fontSize: 14,
     fontWeight: '600',
-    color: 'black'
+    color: theme.primaryText,
   },
   avatarContainer: {
     position: 'relative',
@@ -1032,7 +1053,15 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingVertical: 12,
     flexGrow: 1,
+    marginTop: 8,
     paddingBottom: 20,
+    backgroundColor: theme.cardBackground,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+    borderRadius: 12,
+    marginHorizontal: 10,
+    marginBottom: 2,
+
   },
   messageRow: {
     flexDirection: 'row',
@@ -1128,23 +1157,25 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.cardBackground,
     marginHorizontal: 10,
+    marginVertical: 7,
     borderRadius: 25,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOpacity: 0.05,
     shadowRadius: 3,
-    elevation: 3,
-    // backgroundColor: 'red',
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
   },
   textInput: {
     flex: 1,
     fontSize: 15,
     maxHeight: 100,
     paddingHorizontal: 10,
-    color: '#000',
+    color: theme.inputText,
   },
   sendButton: {
     backgroundColor: '#007AFF',

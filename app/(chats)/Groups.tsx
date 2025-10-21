@@ -1,9 +1,11 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function GroupsScreen() {
@@ -13,6 +15,9 @@ export default function GroupsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredGroups, setFilteredGroups] = useState([]);
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+  const styles = createStyles(currentTheme);
 
   const handleGroupChatNavigation = (groupId: any) => {
     router.replace({
@@ -36,8 +41,8 @@ export default function GroupsScreen() {
       setFilteredGroups(groups);
       return;
     }
-    
-    const filtered = groups.filter((group: any) => 
+
+    const filtered = groups.filter((group: any) =>
       group.name.toLowerCase().includes(searchText.toLowerCase()) ||
       group.description?.toLowerCase().includes(searchText.toLowerCase()) ||
       group.createdBy?.fullName?.toLowerCase().includes(searchText.toLowerCase())
@@ -114,7 +119,7 @@ export default function GroupsScreen() {
       activeOpacity={0.7}
     >
       <View style={styles.avatarContainer}>
-        <Image 
+        <Image
           source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${getRandomColor().replace('#', '')}&fontSize=20&fontWeight=600` }}
           style={styles.avatarImage}
           defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${getRandomColor().replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
@@ -203,7 +208,7 @@ export default function GroupsScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search groups..."
-            placeholderTextColor="#999"
+            placeholderTextColor={currentTheme.placeholderText}
             value={searchTerm}
             onChangeText={handleSearchChange}
           />
@@ -234,10 +239,10 @@ export default function GroupsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
 
   // Header Styles
@@ -250,11 +255,11 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.searchBackground,
     borderRadius: 25,
     paddingHorizontal: 16,
     height: 50,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -264,18 +269,20 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: '#333',
+    color: theme.searchInputText,
   },
 
   // Group Item Styles
   groupItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.chatItemBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
+    // borderWidth: 1,
+    marginVertical:1,
+    borderBottomColor: theme.chatItemBorder,
+    elevation: 2
   },
 
   // Avatar Styles
@@ -300,7 +307,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: theme.inputBorder,
   },
   memberCountText: {
     color: '#fff',
@@ -322,12 +329,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#000',
+    color:  theme.primaryText,
     flex: 1,
   },
   time: {
     fontSize: 12,
-    color: '#999',
+    color: theme.tertiaryText,
     fontWeight: '400',
   },
   messageRow: {
@@ -337,7 +344,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 14,
-    color: '#999',
+    color: theme.tertiaryText,
     flex: 1,
     fontWeight: '400',
   },
@@ -347,12 +354,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#7f8c8d',
+    color:  theme.emptyStateSubtext,
     fontWeight: '500',
   },
 
@@ -378,13 +385,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2c3e50',
+    color: theme.emptyStateText,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color:  theme.emptyStateSubtext,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,
@@ -420,7 +427,7 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#333',
+    color: theme.tertiaryText,
     marginBottom: 8,
     textAlign: 'center',
   },

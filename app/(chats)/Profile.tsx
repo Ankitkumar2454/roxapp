@@ -1,19 +1,20 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { ApiResponse, InfoItem, UserData } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
   Image,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -21,16 +22,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 
 const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+  const styles = createStyles(currentTheme);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -69,7 +74,7 @@ export default function ProfileScreen() {
       setLoading(true);
       setError(null);
       const res = await api.get<ApiResponse>(ENDPOINTS.auth.profile);
-      
+
       if (res.data.success && res.data.data) {
         setUserData(res.data.data);
       }
@@ -126,7 +131,7 @@ export default function ProfileScreen() {
       'Logout',
       'Are you sure you want to logout?',
       [
-        { text: 'Cancel', onPress: () => {}, style: 'cancel' },
+        { text: 'Cancel', onPress: () => { }, style: 'cancel' },
         {
           text: 'Logout',
           onPress: async () => {
@@ -145,15 +150,19 @@ export default function ProfileScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
+      <SafeAreaView style={styles.container} edges={["left", "right"]}>
+        <StatusBar
+          barStyle={theme === 'dark' ? "light-content" : "dark-content"}
+          // backgroundColor="transparent"
+          translucent={true}
+        />
         <LinearGradient
-          colors={['#009BFF', '#0066CC']}
+          colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
           style={styles.loadingGradient}
         >
           <View style={styles.loadingContainer}>
             <Animated.View style={[styles.loadingIcon, { transform: [{ scale: scaleAnim }] }]}>
-              <Ionicons name="person-circle" size={80} color="#fff" />
+              <Ionicons name="person-circle" size={80} color={currentTheme.primaryText} />
             </Animated.View>
             <Text style={styles.loadingText}>Loading profile...</Text>
             <ActivityIndicator size="large" color="#fff" style={styles.loadingSpinner} />
@@ -165,7 +174,7 @@ export default function ProfileScreen() {
 
   if (error || !userData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={["left", "right"]}>
         <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
         <LinearGradient
           colors={['#009BFF', '#0066CC']}
@@ -191,70 +200,73 @@ export default function ProfileScreen() {
   const userInfo = getUserInfoItems();
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
-      
+    <SafeAreaView style={styles.container} edges={["left", "right"]}>
+      {/* <StatusBar barStyle="light-content" backgroundColor="#667eea" /> */}
+      <StatusBar
+        barStyle={theme === 'dark' ? "light-content" : "dark-content"}
+        translucent={true}
+      />
       {/* Header Gradient */}
       {/* <LinearGradient
         colors={['#009BFF', '#0066CC']}
         style={styles.headerGradient}
       > */}
-        <Animated.View 
-          style={[
-            styles.profileSection,
-            {
-              opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim }
-              ]
-            }
-          ]}
-        >
-          <View style={styles.profileRow}>
-            {/* First Column - Image */}
-            <View style={styles.imageColumn}>
-              <View style={styles.avatarContainer}>
+      <Animated.View
+        style={[
+          styles.profileSection,
+          {
+            opacity: fadeAnim,
+            transform: [
+              { translateY: slideAnim },
+              { scale: scaleAnim }
+            ]
+          }
+        ]}
+      >
+        <View style={styles.profileRow}>
+          {/* First Column - Image */}
+          <View style={styles.imageColumn}>
+            <View style={styles.avatarContainer}>
+              <LinearGradient
+                colors={['#fff', '#f8f9fa']}
+                style={styles.avatarGradient}
+              >
+                <Image
+                  source={{ uri: userData.profileImage }}
+                  style={styles.avatar}
+                />
+              </LinearGradient>
+              <TouchableOpacity style={styles.editIconButton}>
                 <LinearGradient
-                  colors={['#fff', '#f8f9fa']}
-                  style={styles.avatarGradient}
+                  colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
+                  style={styles.editIconGradient}
                 >
-                  <Image
-                    source={{ uri: userData.profileImage }}
-                    style={styles.avatar}
-                  />
+                  <Ionicons name="pencil" size={16} color={currentTheme.primaryText} />
                 </LinearGradient>
-                <TouchableOpacity style={styles.editIconButton}>
-                  <LinearGradient
-                    colors={['#009BFF', '#0066CC']}
-                    style={styles.editIconGradient}
-                  >
-                    <Ionicons name="pencil" size={16} color="#fff" />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Second Column - Info */}
-            <View style={styles.infoColumn}>
-              <Text style={styles.name}>{userData.fullName}</Text>
-              <Text style={styles.username}>@{userData.username}</Text>
-              <Text style={styles.role}>{userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}</Text>
-              
-              {/* Status Badge */}
-              <View style={styles.statusBadge}>
-                <View style={[styles.statusDot, { backgroundColor: userData.isActive ? '#4CAF50' : '#FF5252' }]} />
-                <Text style={styles.statusText}>
-                  {userData.isActive ? 'Online' : 'Offline'}
-                </Text>
-              </View>
+              </TouchableOpacity>
             </View>
           </View>
-        </Animated.View>
+
+          {/* Second Column - Info */}
+          <View style={styles.infoColumn}>
+            <Text style={styles.name}>{userData.fullName}</Text>
+            <Text style={styles.username}>@{userData.username}</Text>
+            <Text style={styles.role}>{userData.role.charAt(0).toUpperCase() + userData.role.slice(1)}</Text>
+
+            {/* Status Badge */}
+            <View style={styles.statusBadge}>
+              <View style={[styles.statusDot, { backgroundColor: userData.isActive ? '#4CAF50' : '#FF5252' }]} />
+              <Text style={styles.statusText}>
+                {userData.isActive ? 'Online' : 'Offline'}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Animated.View>
       {/* </LinearGradient> */}
 
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <Animated.View 
+        <Animated.View
           style={[
             styles.content,
             {
@@ -267,7 +279,7 @@ export default function ProfileScreen() {
           <View style={styles.infoSection}>
             <Text style={styles.sectionTitle}>Profile Information</Text>
             {userInfo.map((info, index) => (
-              <Animated.View 
+              <Animated.View
                 key={index}
                 style={[
                   styles.infoCard,
@@ -283,7 +295,7 @@ export default function ProfileScreen() {
                 <View style={styles.infoRow}>
                   <View style={styles.infoLeft}>
                     <View style={styles.infoIconContainer}>
-                      <Ionicons name={info.icon as any} size={20} color="#667eea" />
+                      <Ionicons name={info.icon as any} size={20} color={currentTheme.iconColor} />
                     </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>{info.label}</Text>
@@ -307,7 +319,7 @@ export default function ProfileScreen() {
             <View style={styles.activityCard}>
               <View style={styles.activityItem}>
                 <View style={styles.activityIconContainer}>
-                  <Ionicons name="time-outline" size={24} color="#667eea" />
+                  <Ionicons name="time-outline" size={24} color={currentTheme.iconColor} />
                 </View>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityLabel}>Last Login</Text>
@@ -316,12 +328,12 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               </View>
-              
+
               <View style={styles.activityDivider} />
-              
+
               <View style={styles.activityItem}>
                 <View style={styles.activityIconContainer}>
-                  <Ionicons name="calendar-outline" size={24} color="#667eea" />
+                  <Ionicons name="calendar-outline" size={24} color={currentTheme.iconColor} />
                 </View>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityLabel}>Member Since</Text>
@@ -358,19 +370,20 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: theme.background,
   },
-  
+
   // Header Styles
   headerGradient: {
     paddingTop: 20,
     paddingBottom: 40,
     paddingHorizontal: 20,
   },
-  
+
   // Loading & Error States
   loadingGradient: {
     flex: 1,
@@ -382,13 +395,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+     backgroundColor: theme.containerBackground,
   },
   loadingIcon: {
     marginBottom: 20,
   },
   loadingText: {
     fontSize: 18,
-    color: '#fff',
+    color: theme.emptyStateSubtext,
     fontWeight: '600',
     marginBottom: 20,
   },
@@ -403,7 +417,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#fff',
+    color: theme.emptyStateText,
     textAlign: 'center',
     marginTop: 20,
     marginBottom: 30,
@@ -423,18 +437,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 16,
   },
-  
+
   // Profile Section
   profileSection: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.cardBackground,
     marginTop: 20,
     marginBottom: 15,
     borderRadius: 12,
     marginHorizontal: 20,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
     elevation: 2,
   },
   profileRow: {
@@ -484,12 +500,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#000',
+    color: theme.primaryText,
     marginBottom: 4,
   },
   username: {
     fontSize: 14,
-    color: '#666',
+    color: theme.secondaryText,
     marginBottom: 6,
   },
   role: {
@@ -518,39 +534,42 @@ const styles = StyleSheet.create({
     color: '#009BFF',
     fontWeight: '500',
   },
-  
+
   // Scroll Container
   scrollContainer: {
     flex: 1,
     marginTop: 0,
+    backgroundColor: theme.cardBackground
   },
   content: {
     paddingHorizontal: 20,
     paddingBottom: 30,
   },
-  
+
   // Section Titles
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: '#2c3e50',
+    color: theme.primaryText,
     marginBottom: 16,
     marginTop: 20,
   },
-  
+
   // Info Section
   infoSection: {
     marginBottom: 20,
   },
   infoCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.cardBackground,
     borderRadius: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
   },
   infoRow: {
     flexDirection: 'row',
@@ -576,13 +595,13 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#7f8c8d',
+    color: theme.primaryText,
     marginBottom: 4,
     fontWeight: '500',
   },
   infoValue: {
     fontSize: 16,
-    color: '#2c3e50',
+    color: theme.secondaryText,
     fontWeight: '600',
   },
   copyButton: {
@@ -590,20 +609,23 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(0, 155, 255, 0.1)',
   },
-  
+
   // Activity Section
   activitySection: {
     marginBottom: 20,
   },
   activityCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.cardBackground,
     borderRadius: 16,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    borderWidth: 1,
+    borderColor: theme.inputBorder,
+
   },
   activityItem: {
     flexDirection: 'row',
@@ -624,21 +646,21 @@ const styles = StyleSheet.create({
   },
   activityLabel: {
     fontSize: 14,
-    color: '#7f8c8d',
+    color: theme.primaryText,
     marginBottom: 4,
     fontWeight: '500',
   },
   activityValue: {
     fontSize: 16,
-    color: '#2c3e50',
+    color: theme.secondaryText,
     fontWeight: '600',
   },
   activityDivider: {
     height: 1,
-    backgroundColor: '#ecf0f1',
+    backgroundColor: theme.inputBorder,
     marginVertical: 8,
   },
-  
+
   // Action Section
   actionSection: {
     marginTop: 20,
