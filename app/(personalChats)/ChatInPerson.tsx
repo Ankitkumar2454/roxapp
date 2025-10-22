@@ -935,70 +935,40 @@ export default function ChatMessageScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                 <TouchableOpacity 
-                     onPress={() => router.back()}
-                     style={styles.backButton}
-                     activeOpacity={0.7}
-                 >
-                     <Ionicons name="arrow-back" size={24} color="black" />
-                 </TouchableOpacity>
-                 
-                 <View style={styles.headerCenter}>
-                     <View style={styles.avatarContainer}>
-                         <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
-                             <Text style={styles.avatarText}>{friendName[0]}</Text>
-                         </View>
-                     </View>
-                     <View style={styles.userInfo}>
-                         <Text style={styles.friendName}>{friendName}</Text>
-                         <Text style={styles.statusText}>
-                             {isTyping ? '✍️ Typing...' : '🟢 Online'}
-                         </Text>
-                     </View>
-                 </View>
-                 
-                 <View style={styles.headerIcons}>
-                    <TouchableOpacity 
-                         style={styles.headerIconButton} 
-                         activeOpacity={0.7}
-                        onPress={() => {
-                            try {
-                                if (!socketRef.current) return;
-                                socketRef.current.emit('call:initiate', {
-                                    participants: [friendId],
-                                    callType: 'video',
-                                });
-                                setCurrentCallType('video');
-                            } catch (e:any) {
-                                Alert.alert('Call Failed', e?.message || 'Unable to start video call');
-                            }
-                        }}
-                     >
-                         <Ionicons name="videocam-outline" size={22} color={currentTheme.primaryText} />
-                     </TouchableOpacity>
-                     <TouchableOpacity 
-                         style={styles.headerIconButton} 
-                         activeOpacity={0.7}
-                        onPress={() => {
-                            try {
-                                if (!socketRef.current) return;
-                                socketRef.current.emit('call:initiate', {
-                                    participants: [friendId],
-                                    callType: 'voice',
-                                });
-                                setCurrentCallType('voice');
-                            } catch (e:any) {
-                                Alert.alert('Call Failed', e?.message || 'Unable to start voice call');
-                            }
-                        }}
-                     >
-                         <Ionicons name="call-outline" size={22} color={currentTheme.primaryText} />
-                     </TouchableOpacity>
-                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                         <Ionicons name="ellipsis-vertical" size={20} color={currentTheme.primaryText} />
-                     </TouchableOpacity>
-                 </View>
-             </View>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="arrow-back" size={24} color="black" />
+                </TouchableOpacity>
+
+                <View style={styles.headerCenter}>
+                    <View style={styles.avatarContainer}>
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
+                            <Text style={styles.avatarText}>{friendName[0]}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.userInfo}>
+                        <Text style={styles.friendName}>{friendName}</Text>
+                        <Text style={styles.statusText}>
+                            {isTyping ? '✍️ Typing...' : '🟢 Online'}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.headerIcons}>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="videocam-outline" size={22} color={currentTheme.primaryText} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="call-outline" size={22} color={currentTheme.primaryText} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="ellipsis-vertical" size={20} color={currentTheme.primaryText} />
+                    </TouchableOpacity>
+                </View>
+            </View>
 
             {/* Main Content with Keyboard Avoidance */}
             <KeyboardAvoidingView
