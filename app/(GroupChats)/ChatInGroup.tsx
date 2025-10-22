@@ -630,7 +630,7 @@ export default function GroupChatScreen() {
                         <Ionicons name="call-outline" size={22} color={ currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={ currentTheme.primaryText} />
+                        <Ionicons name="ellipsis-vertical" size={22} color={ currentTheme.primaryText} />
                     </TouchableOpacity>
                 </View>
             </View>

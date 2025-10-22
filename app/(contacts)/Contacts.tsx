@@ -880,7 +880,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 24,
         gap: 16,
-        backgroundColor: theme.containerBackground,
+        backgroundColor: theme.cardBackground,
     },
     fieldGroup: {
         marginBottom: 8,
@@ -914,9 +914,9 @@ const createStyles = (theme: any) => StyleSheet.create({
         gap: 12,
         paddingHorizontal: 16,
         paddingBottom: 20,
-        backgroundColor: theme.containerBackground,
+        backgroundColor: theme.cardBackground,
         borderTopColor: theme.inputBorder,
-        borderTopWidth: 2,
+        // borderTopWidth: 2,
     },
     cancelButton: {
         flex: 1,
@@ -926,7 +926,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 3,
+        // marginTop: 3,
     },
     cancelButtonText: {
         fontSize: 16,
@@ -937,7 +937,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         flex: 1,
         borderRadius: 12,
         overflow: 'hidden',
-        marginTop: 3,
+        // marginTop: 3,
     },
     submitButtonDisabled: {
         opacity: 0.6,

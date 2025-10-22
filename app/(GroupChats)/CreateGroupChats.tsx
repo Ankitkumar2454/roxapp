@@ -626,8 +626,8 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingVertical: 12,
         paddingBottom: 24,
         backgroundColor: theme.cardBackground,
-        borderTopWidth: 2,
-        borderTopColor: theme.inputBorder,
+        // borderTopWidth: 2,
+        // borderTopColor: theme.inputBorder,
         shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: -2 },
         shadowOpacity: 0.1,
@@ -656,7 +656,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     modalContainer: {
         flex: 1,
-        backgroundColor: theme.containerBackground,
+        backgroundColor: theme.cardBackground,
     },
     modalHeader: {
         paddingTop: 50,

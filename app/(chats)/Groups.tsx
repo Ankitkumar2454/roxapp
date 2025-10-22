@@ -276,13 +276,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   groupItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.chatItemBackground,
+    // backgroundColor: theme.chatItemBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
     // borderWidth: 1,
-    marginVertical:1,
+    // marginVertical:1,
+      borderBottomWidth: 0.5,
     borderBottomColor: theme.chatItemBorder,
-    elevation: 2
+    // elevation: 2
   },
 
   // Avatar Styles

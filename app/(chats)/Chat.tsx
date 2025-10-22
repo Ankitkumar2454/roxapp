@@ -205,7 +205,7 @@ export default function ChatScreen() {
           <TextInput
             style={styles.searchInput}
             placeholder="Search conversations..."
-            placeholderTextColor="#999"
+            placeholderTextColor={currentTheme.placeholderText}
             value={searchTerm}
             onChangeText={handleSearchChange}
           />

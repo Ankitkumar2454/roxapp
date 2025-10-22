@@ -2,7 +2,7 @@ import { Storage } from "@/hooks/useLocalAsyncStorage";
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://192.168.0.80:8000",
+  baseURL: "https://polobet247.in",
   timeout: 10000,
 });
 

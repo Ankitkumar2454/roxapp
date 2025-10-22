@@ -2,11 +2,11 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useRef, useState, useContext } from 'react';
-import { ThemeProvider, ThemeContext } from "@/src/services/ThemeContext";
-import { lightTheme, darkTheme } from "@/src/constants/color";
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -671,7 +671,7 @@ export default function SupportScreen() {
         headerShown: true
       });
     }
-  }, [selectedConversation, navigation]);
+  }, [selectedConversation, navigation , currentTheme]);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
@@ -696,10 +696,8 @@ export default function SupportScreen() {
     );
   }
   return (
-
-    <SafeAreaView style={styles.container} >
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       {selectedConversation ? (
-
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={10}
@@ -895,13 +893,13 @@ const createStyles = (theme: any) => StyleSheet.create({
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.chatItemBackground,
+    // backgroundColor: theme.chatItemBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    marginVertical: 1,
+    // marginVertical: 1,
     borderBottomColor: theme.chatItemBorder,
-    elevation: 2
+    // elevation: 2
   },
   avatarPlaceholder: {
     width: 50,
@@ -1006,13 +1004,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.chatItemBackground,
     borderRadius: 45,
     marginHorizontal: 10,
-    marginTop: 20,
+    marginTop: 25,
     elevation: 4,
     shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.15,
     shadowRadius: 6,
-    borderWidth: 1,
+    // borderWidth: 1,
     borderColor: theme.inputBorder,
 
   },
@@ -1056,7 +1054,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginTop: 8,
     paddingBottom: 20,
     backgroundColor: theme.cardBackground,
-    borderWidth: 1,
+    // borderWidth: 1,
     borderColor: theme.inputBorder,
     borderRadius: 12,
     marginHorizontal: 10,

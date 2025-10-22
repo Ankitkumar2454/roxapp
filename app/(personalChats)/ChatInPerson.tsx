@@ -1315,7 +1315,7 @@ export default function ChatMessageScreen() {
                             }
                         }}
                     >
-                        <Ionicons name="videocam-outline" size={22} color="black" />
+                        <Ionicons name="videocam-outline" size={25} color={ currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.headerIconButton}
@@ -1333,10 +1333,10 @@ export default function ChatMessageScreen() {
                             }
                         }}
                     >
-                        <Ionicons name="call-outline" size={22} color="black" />
+                        <Ionicons name="call-outline" size={25} color={ currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="black" />
+                        <Ionicons name="ellipsis-vertical" size={25} color={ currentTheme.primaryText} />
                     </TouchableOpacity>
                 </View>
             </View>

@@ -1,12 +1,12 @@
 import api from "@/api/axiosInstance";
 import ENDPOINTS from "@/api/endPoints";
 import GlobalMessage from "@/CustomComponents/message";
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState, useContext } from 'react';
-import { ThemeProvider, ThemeContext } from "@/src/services/ThemeContext";
-import { lightTheme , darkTheme } from "@/src/constants/color";
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { greetings } from "./login";
 
@@ -139,7 +139,7 @@ export default function MPINResetScreen() {
 
     return (
         <KeyboardAvoidingView
-            style={{ flex: 1, backgroundColor: "#C9EBFF" }}
+            style={{ flex: 1, backgroundColor: currentTheme.containerBackground}}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
         >
@@ -149,7 +149,7 @@ export default function MPINResetScreen() {
             >
                 <View style={[styles.card, { width: screenWidth }]}>
                     <LinearGradient
-                        colors={["#009BFF", "#0066CC"]}
+                       colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.header}
@@ -172,7 +172,7 @@ export default function MPINResetScreen() {
                         <TextInput
                             style={[styles.input, { flex: 1 }]}
                             placeholder="Enter new 6-digit MPIN"
-                            placeholderTextColor="#ccc"
+                           placeholderTextColor={currentTheme.placeholderText}
                             value={newMPIN}
                             onChangeText={setNewMPIN}
                             maxLength={6}
@@ -194,7 +194,7 @@ export default function MPINResetScreen() {
                         <TextInput
                             style={[styles.input, { flex: 1 }]}
                             placeholder="Confirm new MPIN"
-                            placeholderTextColor="#ccc"
+                             placeholderTextColor={currentTheme.placeholderText}
                             value={confirmMPIN}
                             onChangeText={setConfirmMPIN}
                             maxLength={6}
@@ -250,7 +250,7 @@ export default function MPINResetScreen() {
 
 const createStyles = (theme: any) => StyleSheet.create({
     card: {
-        backgroundColor: "#fff",
+        backgroundColor: theme.cardBackground,
         borderRadius: 20,
         overflow: "hidden",
         paddingBottom: 40,
@@ -265,7 +265,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 25,
         paddingBottom: 30,
         position: "relative",
-        shadowColor: "#347a98ff",
+       shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.25,
         shadowRadius: 20,
@@ -273,7 +273,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     loginText: {
         fontSize: 38,
-        color: "#fff",
+        color: theme.headerText,
         fontWeight: "300",
         position: "absolute",
         top: 100,
@@ -281,11 +281,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     subtitle: {
         fontSize: 30,
-        color: "#fff",
+        color: theme.headerText,
         fontWeight: "200"
     },
     infoText: {
-        color: "#3e3939ff",
+      color: theme.secondaryText,
         textAlign: "left",
         marginTop: 45,
         marginHorizontal: 25,
@@ -295,14 +295,14 @@ const createStyles = (theme: any) => StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         borderBottomWidth: 1.2,
-        borderColor: "#aaa",
+        borderColor: theme.inputBorder,
         marginHorizontal: 25,
         marginTop: 25,
         paddingBottom: 6
     },
     input: {
         flex: 1,
-        color: "#000",
+        color: theme.inputText,
         fontSize: 15
     },
     iconContainer: {

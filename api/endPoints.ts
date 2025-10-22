@@ -51,7 +51,7 @@ const ENDPOINTS = {
     toggleRecording: (callId: string) => `/api/calls/${callId}/recording`,
     stats: "/api/calls/stats",
   },
-  socket: "ws://192.168.0.80:8000",
+  socket: "wss://polobet247.in",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory: "/api/whatsapp-messages/history"
