@@ -55,7 +55,6 @@ const ENDPOINTS = {
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory: "/api/whatsapp-messages/history"
-    getChatHistory: "/api/whatsapp-messages/history"
   },
 };
 
