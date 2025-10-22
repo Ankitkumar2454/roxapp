@@ -5,7 +5,7 @@ import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { GroupData, Message } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState, useContext } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -23,8 +23,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import io, { Socket } from 'socket.io-client';
 
+import { darkTheme, lightTheme } from "@/src/constants/color";
 import { ThemeContext } from "@/src/services/ThemeContext";
-import { lightTheme, darkTheme } from "@/src/constants/color";
 
 
 interface ForwardContact {
@@ -942,8 +942,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         flex: 1,
         marginTop: 8,
         backgroundColor: theme.cardBackground,
-        borderWidth: 1,
-        borderColor: theme.inputBorder,
         borderRadius: 12,
         marginHorizontal: 10,
         marginBottom: 2,
@@ -963,8 +961,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.15,
         shadowRadius: 6,
-        borderWidth: 1,
-        borderColor: theme.inputBorder,
         zIndex: 1000, // Ensure header stays on top
     },
     backButton: {
@@ -1122,8 +1118,6 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     theirBubble: {
         backgroundColor: '#FFFFFF',
-        borderWidth: 1,
-        borderColor: '#E5E5EA',
     },
     // WhatsApp-style bubble grouping
     myFirstBubble: {
@@ -1276,8 +1270,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 8,
         elevation: 8,
-        borderWidth: 1,
-        borderColor: theme.inputBorder,
     },
     iconButton: {
         paddingHorizontal: 8,
@@ -1335,8 +1327,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 16,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.inputBorder,
     },
     forwardModalTitle: {
         fontSize: 18,
@@ -1350,8 +1340,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: '#009BFF',
     },
     messagePreviewHeader: {
         flexDirection: 'row',
@@ -1402,8 +1390,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor:  theme.inputBorder,
     },
     forwardContactAvatar: {
         marginRight: 12,

@@ -3,8 +3,12 @@ import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 
 import { darkTheme, lightTheme } from "@/src/constants/color";
 import { ThemeContext } from "@/src/services/ThemeContext";
@@ -47,7 +51,7 @@ interface Message {
     isSent: boolean;
     isDelivered?: boolean;
     isRead?: boolean;
-    messageType?: 'text' | 'image' | 'voice';
+    messageType?: 'text' | 'image' | 'video' | 'voice' | 'audio' | 'document';
     mediaUrl?: string;
     mediaThumbnail?: string;
     voiceDuration?: number; // in seconds
@@ -96,6 +100,17 @@ export default function ChatMessageScreen() {
     const [recordingDuration, setRecordingDuration] = useState(0);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [showImagePreview, setShowImagePreview] = useState(false);
+
+    // Image/Video upload states
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadProgress, setUploadProgress] = useState(0);
+    const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+    const [selectedMedia, setSelectedMedia] = useState<{
+        uri: string;
+        type: 'image' | 'video' | 'audio' | 'document';
+        name: string;
+        size: number;
+    } | null>(null);
 
     // Audio recording states
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -182,9 +197,11 @@ export default function ChatMessageScreen() {
     const fetchPreviousMessages = async (userId: string, friendId: string) => {
         try {
             const response = await api.get(`${ENDPOINTS.chat.previous_message}/${friendId}/history`);
-            console.log(response.data.data.result.messages, "response.data.data.result.messages");
-            if (response.data.success && response.data.data?.result?.messages) {
-                const formattedMessages: Message[] = response.data.data.result.messages.map((msg: any) => ({
+            console.log(response.data, "response.data.data.result.messages");
+            if (response.data?.success
+                && response.data?.data?.messages
+                && response.data?.data?.messages.length > 0) {
+                const formattedMessages: Message[] = response.data?.data?.messages.map((msg: any) => ({
                     _id: msg._id,
                     id: msg._id,
                     senderId: msg.sender._id,
@@ -195,7 +212,9 @@ export default function ChatMessageScreen() {
                     isSent: msg.sender._id === userId,
                     isDelivered: msg.status === 'delivered' || msg.status === 'read',
                     isRead: true,
+                    mediaUrl: msg.mediaUrl,
                 }));
+                console.log('formattedMessages', response.data?.data?.messages);
                 setMessages(formattedMessages);
                 setTimeout(() => scrollToEnd(), 300);
             }
@@ -331,6 +350,10 @@ export default function ChatMessageScreen() {
                 isSent: msg.sender._id === currentUserId,
                 isDelivered: msg.sender._id === currentUserId,
                 isRead: false,
+                messageType: msg.messageType || 'text',
+                mediaUrl: msg.mediaUrl,
+                mediaThumbnail: msg.mediaThumbnail,
+                voiceDuration: msg.duration,
             };
 
             return [...prev, newMsg];
@@ -681,41 +704,269 @@ export default function ChatMessageScreen() {
 
     const handleSendVoice = async (voiceUrl: string, duration: number) => {
         try {
+            console.log('Starting voice upload process...', voiceUrl, duration);
+            
+            // Upload the voice file to server first
+            const uploadedUrl = await uploadMedia(voiceUrl, 'audio', `voice_${Date.now()}.m4a`);
+            
+            console.log('Voice uploaded successfully:', uploadedUrl);
+            
             const tempId = Date.now().toString();
             const newMessage: Message = {
                 id: tempId,
                 senderId: currentUserId,
-                text: 'Voice message',
-                content: 'Voice message',
+                text: uploadedUrl, // Use the uploaded URL
+                content: uploadedUrl,
                 time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
                 isSent: true,
-                messageType: 'voice',
-                mediaUrl: voiceUrl,
+                messageType: 'audio',
+                mediaUrl: uploadedUrl,
                 voiceDuration: duration,
             };
             setMessages((prev) => [...prev, newMessage]);
             scrollToEnd();
 
-            // Send voice to backend via socket
+            // Send voice message via socket with the uploaded URL
             if (socketRef.current) {
-                // Convert audio file to base64 for sending
-                const base64Audio = await FileSystem.readAsStringAsync(voiceUrl, {
-                    encoding: 'base64',
-                });
-
                 socketRef.current.emit('message:send', {
                     receiverId: friendId,
-                    content: 'Voice message',
-                    messageType: 'voice',
-                    mediaData: base64Audio,
-                    duration: duration,
+                    content: uploadedUrl,
+                    messageType: 'audio',
                 });
             }
 
-            console.log('Voice message sent:', voiceUrl, 'Duration:', duration);
+            console.log('Voice message sent:', uploadedUrl, 'Duration:', duration);
         } catch (error) {
             console.error('Failed to send voice message:', error);
             Alert.alert('Send Error', 'Failed to send voice message. Please try again.');
+        }
+    };
+
+    // Image and Video Upload Functions
+    const pickImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                setSelectedMedia({
+                    uri: asset.uri,
+                    type: 'image',
+                    name: asset.fileName || `image_${Date.now()}.jpg`,
+                    size: asset.fileSize || 0,
+                });
+                setShowMediaOptions(false);
+            }
+        } catch (error) {
+            console.error('Error picking image:', error);
+            Alert.alert('Error', 'Failed to pick image. Please try again.');
+        }
+    };
+
+    const pickVideo = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Videos,
+                allowsEditing: true,
+                quality: 0.8,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                setSelectedMedia({
+                    uri: asset.uri,
+                    type: 'video',
+                    name: asset.fileName || `video_${Date.now()}.mp4`,
+                    size: asset.fileSize || 0,
+                });
+                setShowMediaOptions(false);
+            }
+        } catch (error) {
+            console.error('Error picking video:', error);
+            Alert.alert('Error', 'Failed to pick video. Please try again.');
+        }
+    };
+
+    const pickAudio = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['audio/*'],
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                setSelectedMedia({
+                    uri: asset.uri,
+                    type: 'audio',
+                    name: asset.name || `audio_${Date.now()}.mp3`,
+                    size: asset.size || 0,
+                });
+                setShowMediaOptions(false);
+            }
+        } catch (error) {
+            console.error('Error picking audio:', error);
+            Alert.alert('Error', 'Failed to pick audio file. Please try again.');
+        }
+    };
+
+    const pickDocument = async () => {
+        try {
+            const result = await DocumentPicker.getDocumentAsync({
+                type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+                copyToCacheDirectory: true,
+            });
+
+            if (!result.canceled && result.assets[0]) {
+                const asset = result.assets[0];
+                setSelectedMedia({
+                    uri: asset.uri,
+                    type: 'document',
+                    name: asset.name || `document_${Date.now()}.pdf`,
+                    size: asset.size || 0,
+                });
+                setShowMediaOptions(false);
+            }
+        } catch (error) {
+            console.error('Error picking document:', error);
+            Alert.alert('Error', 'Failed to pick document. Please try again.');
+        }
+    };
+
+    const uploadMedia = async (mediaUri: string, mediaType: 'image' | 'video' | 'audio' | 'document', fileName: string) => {
+        try {
+            setIsUploading(true);
+            setUploadProgress(0);
+
+            // Create FormData for file upload
+
+            console.log(mediaType, "mediaTypeRand")
+            const formData = new FormData();
+
+            formData.append('folder', mediaType === 'image' ? 'images' :
+                mediaType === 'video' ? 'videos' :
+                    mediaType === 'audio' ? 'audios' : 'documents');
+
+            // Determine MIME type based on file extension
+            const getMimeType = (fileName: string, mediaType: string) => {
+                const extension = fileName.toLowerCase().split('.').pop();
+                switch (extension) {
+                    case 'pdf': return 'application/pdf';
+                    case 'doc': return 'application/msword';
+                    case 'docx': return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                    case 'txt': return 'text/plain';
+                    case 'xls': return 'application/vnd.ms-excel';
+                    case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+                    case 'jpg':
+                    case 'jpeg': return 'image/jpeg';
+                    case 'png': return 'image/png';
+                    case 'gif': return 'image/gif';
+                    case 'mp4': return 'video/mp4';
+                    case 'mov': return 'video/quicktime';
+                    case 'avi': return 'video/x-msvideo';
+                    case 'mp3': return 'audio/mpeg';
+                    case 'wav': return 'audio/wav';
+                    case 'm4a': return 'audio/mp3';
+                    default: return mediaType === 'image' ? 'image/jpeg' :
+                        mediaType === 'video' ? 'video/mp4' :
+                            mediaType === 'audio' ? 'audio/mpeg' : 'application/octet-stream';
+                }
+            };
+
+            formData.append('files', {
+                uri: mediaUri,
+                type: getMimeType(fileName, mediaType),
+                name: fileName,
+            } as any);
+
+            // Upload file to server
+            console.log('Uploading media to server', ENDPOINTS.upload.documents);
+            const response = await api.post(ENDPOINTS.upload.documents, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                onUploadProgress: (progressEvent) => {
+                    const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    setUploadProgress(progress);
+                },
+            });
+
+            console.log('response', response.data);
+
+            if (response.data.success && response.data.data.files[0]) {
+                const uploadedFile = response.data.data.files[0];
+                return uploadedFile.url;
+            } else {
+                throw new Error('Upload failed');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            throw error;
+        } finally {
+            setIsUploading(false);
+            setUploadProgress(0);
+        }
+    };
+
+    const sendMediaMessage = async (mediaUrl: string, mediaType: 'image' | 'video' | 'audio' | 'document') => {
+        try {
+            const tempId = Date.now().toString();
+            const newMessage: Message = {
+                id: tempId,
+                senderId: currentUserId,
+                text: mediaUrl, // Use the URL as text content
+                content: mediaUrl, // Use the URL as content
+                time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                isSent: true,
+                messageType: mediaType,
+                mediaUrl: mediaUrl,
+            };
+
+            setMessages((prev) => [...prev, newMessage]);
+            scrollToEnd();
+
+            // Send media message via socket
+
+            const data = {
+                receiverId: friendId,
+                content: mediaUrl,
+                messageType: mediaType,
+            }
+
+            console.log(data, "feed back new message")
+            if (socketRef.current) {
+                socketRef.current.emit('message:send', data);
+            }
+
+            console.log(`${mediaType} message sent:`, mediaUrl);
+        } catch (error) {
+            console.error(`Failed to send ${mediaType} message:`, error);
+            Alert.alert('Send Error', `Failed to send ${mediaType}. Please try again.`);
+        }
+    };
+
+    const handleSendMedia = async () => {
+        if (!selectedMedia) return;
+
+        try {
+            const mediaUrl = await uploadMedia(
+                selectedMedia.uri,
+                selectedMedia.type,
+                selectedMedia.name
+            );
+
+            console.log('mediaUrl', mediaUrl);
+
+            await sendMediaMessage(mediaUrl, selectedMedia.type);
+            setSelectedMedia(null);
+        } catch (error) {
+            console.error('Failed to send media:', error);
+            Alert.alert('Send Error', 'Failed to send media. Please try again.');
         }
     };
 
@@ -723,6 +974,90 @@ export default function ChatMessageScreen() {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const downloadAndSharePDF = async (pdfUrl: string, fileName: string) => {
+        try {
+            Alert.alert(
+                'Download PDF',
+                'Choose an action:',
+                [
+                    {
+                        text: 'View Online',
+                        onPress: () => viewPDFOnline(pdfUrl)
+                    },
+                    {
+                        text: 'Download & Share',
+                        onPress: () => downloadPDF(pdfUrl, fileName)
+                    },
+                    {
+                        text: 'Cancel',
+                        style: 'cancel'
+                    }
+                ]
+            );
+        } catch (error) {
+            console.error('Error handling PDF:', error);
+            Alert.alert('Error', 'Failed to handle PDF. Please try again.');
+        }
+    };
+
+    const viewPDFOnline = async (pdfUrl: string) => {
+        try {
+            await WebBrowser.openBrowserAsync(pdfUrl, {
+                presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+                controlsColor: '#007AFF',
+                showTitle: true,
+            });
+        } catch (error) {
+            console.error('Error opening PDF:', error);
+            Alert.alert('Error', 'Failed to open PDF. Please try downloading it instead.');
+        }
+    };
+
+    const downloadPDF = async (pdfUrl: string, fileName: string) => {
+        try {
+            setIsDownloadingPDF(true);
+            
+            // Create a temporary file path
+            const fileUri = FileSystem.documentDirectory + fileName;
+            
+            // Download the PDF
+            const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
+            
+            if (downloadResult.status === 200) {
+                // Check if sharing is available
+                const isAvailable = await Sharing.isAvailableAsync();
+                
+                if (isAvailable) {
+                    // Share the downloaded file
+                    await Sharing.shareAsync(downloadResult.uri, {
+                        mimeType: 'application/pdf',
+                        dialogTitle: 'Share PDF Document',
+                    });
+                } else {
+                    Alert.alert('Success', 'PDF downloaded successfully!');
+                }
+            } else {
+                throw new Error('Download failed');
+            }
+        } catch (error) {
+            console.error('Error downloading PDF:', error);
+            Alert.alert('Download Error', 'Failed to download PDF. Please try again.');
+        } finally {
+            setIsDownloadingPDF(false);
+        }
+    };
+
+    const handleDocumentAction = (documentUrl: string, fileName: string) => {
+        const extension = fileName.toLowerCase().split('.').pop();
+        
+        if (extension === 'pdf') {
+            downloadAndSharePDF(documentUrl, fileName);
+        } else {
+            // For other document types, try to open in browser
+            viewPDFOnline(documentUrl);
+        }
     };
 
     // Animated Typing Indicator Component
@@ -876,7 +1211,13 @@ export default function ChatMessageScreen() {
     // Mark messages as read when component mounts or messages change
     useEffect(() => {
         if (messages.length > 0 && currentUserId && !isLoading) {
-            markMessagesAsRead();
+            // Only mark as read if there are actually unread messages
+            const hasUnreadMessages = messages.some(msg => 
+                msg.senderId !== currentUserId && !msg.isRead
+            );
+            if (hasUnreadMessages) {
+                markMessagesAsRead();
+            }
         }
     }, [messages, currentUserId, isLoading]);
 
@@ -935,32 +1276,32 @@ export default function ChatMessageScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                 <TouchableOpacity 
-                     onPress={() => router.back()}
-                     style={styles.backButton}
-                     activeOpacity={0.7}
-                 >
-                     <Ionicons name="arrow-back" size={24} color="black" />
-                 </TouchableOpacity>
-                 
-                 <View style={styles.headerCenter}>
-                     <View style={styles.avatarContainer}>
-                         <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
-                             <Text style={styles.avatarText}>{friendName[0]}</Text>
-                         </View>
-                     </View>
-                     <View style={styles.userInfo}>
-                         <Text style={styles.friendName}>{friendName}</Text>
-                         <Text style={styles.statusText}>
-                             {isTyping ? '✍️ Typing...' : '🟢 Online'}
-                         </Text>
-                     </View>
-                 </View>
-                 
-                 <View style={styles.headerIcons}>
-                    <TouchableOpacity 
-                         style={styles.headerIconButton} 
-                         activeOpacity={0.7}
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    style={styles.backButton}
+                    activeOpacity={0.7}
+                >
+                    <Ionicons name="arrow-back" size={24} color="black" />
+                </TouchableOpacity>
+
+                <View style={styles.headerCenter}>
+                    <View style={styles.avatarContainer}>
+                        <View style={[styles.avatarPlaceholder, { backgroundColor: getConsistentColor(friendName) }]}>
+                            <Text style={styles.avatarText}>{friendName[0]}</Text>
+                        </View>
+                    </View>
+                    <View style={styles.userInfo}>
+                        <Text style={styles.friendName}>{friendName}</Text>
+                        <Text style={styles.statusText}>
+                            {isTyping ? '✍️ Typing...' : '🟢 Online'}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.headerIcons}>
+                    <TouchableOpacity
+                        style={styles.headerIconButton}
+                        activeOpacity={0.7}
                         onPress={() => {
                             try {
                                 if (!socketRef.current) return;
@@ -969,16 +1310,16 @@ export default function ChatMessageScreen() {
                                     callType: 'video',
                                 });
                                 setCurrentCallType('video');
-                            } catch (e:any) {
+                            } catch (e: any) {
                                 Alert.alert('Call Failed', e?.message || 'Unable to start video call');
                             }
                         }}
-                     >
-                         <Ionicons name="videocam-outline" size={22} color="black" />
-                     </TouchableOpacity>
-                     <TouchableOpacity 
-                         style={styles.headerIconButton} 
-                         activeOpacity={0.7}
+                    >
+                        <Ionicons name="videocam-outline" size={22} color="black" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={styles.headerIconButton}
+                        activeOpacity={0.7}
                         onPress={() => {
                             try {
                                 if (!socketRef.current) return;
@@ -987,18 +1328,18 @@ export default function ChatMessageScreen() {
                                     callType: 'voice',
                                 });
                                 setCurrentCallType('voice');
-                            } catch (e:any) {
+                            } catch (e: any) {
                                 Alert.alert('Call Failed', e?.message || 'Unable to start voice call');
                             }
                         }}
-                     >
-                         <Ionicons name="call-outline" size={22} color="black" />
-                     </TouchableOpacity>
-                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                         <Ionicons name="ellipsis-vertical" size={20} color="black" />
-                     </TouchableOpacity>
-                 </View>
-             </View>
+                    >
+                        <Ionicons name="call-outline" size={22} color="black" />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
+                        <Ionicons name="ellipsis-vertical" size={20} color="black" />
+                    </TouchableOpacity>
+                </View>
+            </View>
 
             {/* Main Content with Keyboard Avoidance */}
             <KeyboardAvoidingView
@@ -1017,6 +1358,7 @@ export default function ChatMessageScreen() {
                     >
                         {messages.map((msg) => {
                             const isMe = msg.senderId === currentUserId;
+                            console.log('MSG', msg);
                             return (
                                 <TouchableOpacity
                                     key={msg.id}
@@ -1026,10 +1368,10 @@ export default function ChatMessageScreen() {
                                 >
                                     {!isMe && <Image source={{ uri: "https://api.dicebear.com/7.x/adventurer/png?seed=HappyUser" }} style={styles.msgAvatar} />}
                                     <View style={[styles.messageBubble, isMe ? styles.myBubble : styles.theirBubble]}>
-                                        {msg.messageType === 'image' ? (
+                                        {(msg.messageType === 'image' || (msg.text && msg.text.match(/\.(jpg|jpeg|png|gif|webp)$/i))) ? (
                                             <View style={styles.imageMessageContainer}>
                                                 <Image
-                                                    source={{ uri: msg.mediaUrl }}
+                                                    source={{ uri: msg.mediaUrl || msg.text }}
                                                     style={styles.messageImage}
                                                     resizeMode="cover"
                                                 />
@@ -1041,7 +1383,13 @@ export default function ChatMessageScreen() {
                                             <View style={styles.voiceMessageContainer}>
                                                 <TouchableOpacity
                                                     style={styles.voicePlayButton}
-                                                    onPress={() => msg.mediaUrl && playVoiceMessage(msg.mediaUrl)}
+                                                    onPress={() => {
+                                                        // Use content field (S3 URL) for playback, fallback to mediaUrl or text
+                                                        const voiceUrl = msg.content || msg.mediaUrl || msg.text;
+                                                        if (voiceUrl) {
+                                                            playVoiceMessage(voiceUrl);
+                                                        }
+                                                    }}
                                                 >
                                                     <Ionicons
                                                         name={isPlaying && sound ? "pause" : "play"}
@@ -1060,6 +1408,86 @@ export default function ChatMessageScreen() {
                                                     {msg.voiceDuration ? formatDuration(msg.voiceDuration) : '0:00'}
                                                 </Text>
                                             </View>
+                                        ) : (msg.messageType === 'video' || (msg.text && msg.text.match(/\.(mp4|mov|avi|mkv)$/i))) ? (
+                                            <View style={styles.videoMessageContainer}>
+                                                <Image
+                                                    source={{ uri: msg.mediaThumbnail || msg.mediaUrl || msg.text }}
+                                                    style={styles.messageVideo}
+                                                    resizeMode="cover"
+                                                />
+                                                <View style={styles.videoOverlay}>
+                                                    <Ionicons name="play" size={24} color="#fff" />
+                                                </View>
+                                            </View>
+                                        ) : (msg.messageType === 'audio' || (msg.text && msg.text.match(/\.(mp3|wav|m4a|aac|ogg)$/i))) ? (
+                                            <View style={styles.audioMessageContainer}>
+                                                <TouchableOpacity
+                                                    style={styles.audioPlayButton}
+                                                    onPress={() => {
+                                                        // Use content field (S3 URL) for playback, fallback to mediaUrl or text
+                                                        const audioUrl = msg.content || msg.mediaUrl || msg.text;
+                                                        if (audioUrl) {
+                                                            playVoiceMessage(audioUrl);
+                                                        }
+                                                    }}
+                                                >
+                                                    <Ionicons
+                                                        name={isPlaying && sound ? "pause" : "play"}
+                                                        size={20}
+                                                        color={isMe ? "#fff" : "#2196F3"}
+                                                    />
+                                                </TouchableOpacity>
+                                                <View style={styles.audioWaveform}>
+                                                    <View style={[styles.audioBar, { height: 8 }]} />
+                                                    <View style={[styles.audioBar, { height: 12 }]} />
+                                                    <View style={[styles.audioBar, { height: 6 }]} />
+                                                    <View style={[styles.audioBar, { height: 10 }]} />
+                                                    <View style={[styles.audioBar, { height: 4 }]} />
+                                                </View>
+                                                <Text style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}>
+                                                    Audio Track
+                                                </Text>
+                                            </View>
+                                         ) : (msg.messageType === 'document' || (msg.text && msg.text.match(/\.(pdf|doc|docx|txt|xls|xlsx)$/i))) ? (
+                                             <View style={styles.documentMessageContainer}>
+                                                 <View style={styles.documentIconContainer}>
+                                                     <Ionicons name="document-text" size={32} color={isMe ? "#fff" : "#607D8B"} />
+                                                 </View>
+                                                 <View style={styles.documentInfoContainer}>
+                                                     <Text style={[styles.documentFileName, isMe ? styles.myText : styles.theirText]} numberOfLines={1}>
+                                                         {msg.text.split('/').pop() || 'Document'}
+                                                     </Text>
+                                                     <Text style={[styles.documentFileSize, isMe ? styles.myTime : styles.theirTime]}>
+                                                         Document File
+                                                     </Text>
+                                                 </View>
+                                                 <View style={styles.documentActionButtons}>
+                                                     <TouchableOpacity
+                                                         style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
+                                                         onPress={() => {
+                                                             const fileName = msg.text.split('/').pop() || 'document.pdf';
+                                                             handleDocumentAction(msg.text, fileName);
+                                                         }}
+                                                         disabled={isDownloadingPDF}
+                                                     >
+                                                         <Ionicons name="eye" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                     </TouchableOpacity>
+                                                     <TouchableOpacity
+                                                         style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
+                                                         onPress={() => {
+                                                             const fileName = msg.text.split('/').pop() || 'document.pdf';
+                                                             downloadPDF(msg.text, fileName);
+                                                         }}
+                                                         disabled={isDownloadingPDF}
+                                                     >
+                                                         {isDownloadingPDF ? (
+                                                             <ActivityIndicator size="small" color={isMe ? "#fff" : "#607D8B"} />
+                                                         ) : (
+                                                             <Ionicons name="download" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                         )}
+                                                     </TouchableOpacity>
+                                                 </View>
+                                             </View>
                                         ) : (
                                             <View style={styles.messageContentContainer}>
                                                 {msg.text.startsWith('Forwarded: ') && (
@@ -1178,13 +1606,46 @@ export default function ChatMessageScreen() {
                         <View style={styles.mediaOptionsContainer}>
                             <TouchableOpacity
                                 style={styles.mediaOption}
-                                onPress={handleImageSelection}
+                                onPress={pickImage}
                                 activeOpacity={0.7}
                             >
                                 <View style={[styles.mediaOptionIcon, { backgroundColor: '#4CAF50' }]}>
                                     <Ionicons name="image" size={24} color="#fff" />
                                 </View>
                                 <Text style={styles.mediaOptionText}>Photo</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.mediaOption}
+                                onPress={pickVideo}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.mediaOptionIcon, { backgroundColor: '#E91E63' }]}>
+                                    <Ionicons name="videocam" size={24} color="#fff" />
+                                </View>
+                                <Text style={styles.mediaOptionText}>Video</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.mediaOption}
+                                onPress={pickAudio}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.mediaOptionIcon, { backgroundColor: '#9C27B0' }]}>
+                                    <Ionicons name="musical-notes" size={24} color="#fff" />
+                                </View>
+                                <Text style={styles.mediaOptionText}>Audio</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.mediaOption}
+                                onPress={pickDocument}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.mediaOptionIcon, { backgroundColor: '#607D8B' }]}>
+                                    <Ionicons name="document-text" size={24} color="#fff" />
+                                </View>
+                                <Text style={styles.mediaOptionText}>Document</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -1237,6 +1698,74 @@ export default function ChatMessageScreen() {
                         </View>
                     </View>
                 </Modal>
+
+                {/* Media Preview Modal */}
+                <Modal
+                    visible={selectedMedia !== null}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setSelectedMedia(null)}
+                >
+                    <View style={styles.imagePreviewOverlay}>
+                        <View style={styles.imagePreviewContainer}>
+                            {selectedMedia && (
+                                <>
+                                    {selectedMedia.type === 'image' ? (
+                                        <Image
+                                            source={{ uri: selectedMedia.uri }}
+                                            style={styles.previewImage}
+                                            resizeMode="contain"
+                                        />
+                                    ) : selectedMedia.type === 'video' ? (
+                                        <View style={styles.videoPreviewContainer}>
+                                            <Ionicons name="videocam" size={64} color="#fff" />
+                                            <Text style={styles.videoPreviewText}>{selectedMedia.name}</Text>
+                                        </View>
+                                    ) : selectedMedia.type === 'audio' ? (
+                                        <View style={styles.audioPreviewContainer}>
+                                            <Ionicons name="musical-notes" size={64} color="#fff" />
+                                            <Text style={styles.audioPreviewText}>{selectedMedia.name}</Text>
+                                            <Text style={styles.audioPreviewSubtext}>
+                                                {(selectedMedia.size / 1024 / 1024).toFixed(2)} MB
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <View style={styles.documentPreviewContainer}>
+                                            <Ionicons name="document-text" size={64} color="#fff" />
+                                            <Text style={styles.documentPreviewText}>{selectedMedia.name}</Text>
+                                            <Text style={styles.documentPreviewSubtext}>
+                                                {(selectedMedia.size / 1024 / 1024).toFixed(2)} MB
+                                            </Text>
+                                        </View>
+                                    )}
+
+                                    {isUploading && (
+                                        <View style={styles.uploadProgressContainer}>
+                                            <Text style={styles.uploadProgressText}>
+                                                Uploading... {uploadProgress}%
+                                            </Text>
+                                        </View>
+                                    )}
+                                </>
+                            )}
+                            <View style={styles.imagePreviewActions}>
+                                <TouchableOpacity
+                                    style={styles.previewCancelButton}
+                                    onPress={() => setSelectedMedia(null)}
+                                >
+                                    <Ionicons name="close" size={24} color="#fff" />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.previewSendButton, isUploading && { opacity: 0.5 }]}
+                                    onPress={handleSendMedia}
+                                    disabled={isUploading}
+                                >
+                                    <Ionicons name="send" size={24} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                </Modal>
             </KeyboardAvoidingView>
 
             {/* Simple In-Call Modal */}
@@ -1244,7 +1773,7 @@ export default function ChatMessageScreen() {
                 visible={isInCall}
                 transparent={true}
                 animationType="slide"
-                onRequestClose={() => {}}
+                onRequestClose={() => { }}
             >
                 <View style={styles.callOverlay}>
                     <View style={styles.callCard}>
@@ -1437,8 +1966,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     chatContainer: {
         flex: 1,
         marginTop: 8,
-        backgroundColor: theme.cardBackground,
-        borderWidth: 1,
+        // backgroundColor: theme.cardBackground,
+        // borderWidth: 1,
         borderColor: theme.inputBorder,
         borderRadius: 12,
         marginHorizontal: 10,
@@ -1460,7 +1989,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.15,
         shadowRadius: 6,
-        borderWidth: 1,
+        borderWidth: 0,
         borderColor: theme.inputBorder,
         zIndex: 1000, // Ensure header stays on top
     },
@@ -1922,7 +2451,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     messagePreviewLabel: {
         fontSize: 12,
-        color:theme.secondaryText,
+        color: theme.secondaryText,
         fontWeight: '600',
     },
     forwardedBadge: {
@@ -1992,7 +2521,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     forwardContactType: {
         fontSize: 12,
-        color:  theme.tertiaryText,
+        color: theme.tertiaryText,
     },
     forwardEmptyContainer: {
         flex: 1,
@@ -2043,5 +2572,164 @@ const createStyles = (theme: any) => StyleSheet.create({
         borderRadius: 28,
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    // Video preview styles
+    videoPreviewContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+    },
+    videoPreviewText: {
+        color: '#fff',
+        fontSize: 16,
+        marginTop: 16,
+        textAlign: 'center',
+    },
+    // Upload progress styles
+    uploadProgressContainer: {
+        position: 'absolute',
+        top: 20,
+        left: 20,
+        right: 20,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+    },
+    uploadProgressText: {
+        color: '#fff',
+        fontSize: 14,
+        textAlign: 'center',
+    },
+    // Video message styles
+    videoMessageContainer: {
+        position: 'relative',
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    messageVideo: {
+        width: 200,
+        height: 150,
+        borderRadius: 12,
+    },
+    videoOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 12,
+    },
+    // Audio message styles
+    audioMessageContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        borderRadius: 12,
+        minWidth: 200,
+    },
+    audioPlayButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
+    },
+    audioWaveform: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        gap: 2,
+    },
+    audioBar: {
+        width: 3,
+        backgroundColor: 'rgba(255,255,255,0.6)',
+        borderRadius: 2,
+    },
+    audioDuration: {
+        fontSize: 12,
+        marginLeft: 8,
+        fontWeight: '500',
+    },
+    // Audio preview styles
+    audioPreviewContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+    },
+    audioPreviewText: {
+        color: '#fff',
+        fontSize: 16,
+        marginTop: 16,
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+    audioPreviewSubtext: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 14,
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    // Document preview styles
+    documentPreviewContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+    },
+    documentPreviewText: {
+        color: '#fff',
+        fontSize: 16,
+        marginTop: 16,
+        textAlign: 'center',
+        fontWeight: '600',
+    },
+    documentPreviewSubtext: {
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 14,
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    // Document message styles
+    documentMessageContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        backgroundColor: 'rgba(0,0,0,0.1)',
+        borderRadius: 12,
+        minWidth: 200,
+    },
+    documentIconContainer: {
+        marginRight: 12,
+    },
+    documentInfoContainer: {
+        flex: 1,
+    },
+    documentFileName: {
+        fontSize: 14,
+        fontWeight: '600',
+        marginBottom: 2,
+    },
+    documentFileSize: {
+        fontSize: 12,
+    },
+    documentActionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    documentActionButton: {
+        padding: 8,
+        borderRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.2)',
     },
 });

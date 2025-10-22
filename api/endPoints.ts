@@ -51,10 +51,14 @@ const ENDPOINTS = {
     toggleRecording: (callId: string) => `/api/calls/${callId}/recording`,
     stats: "/api/calls/stats",
   },
-  socket: "ws://192.168.0.222:8000",
+  socket: "ws://192.168.0.80:8000",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory: "/api/whatsapp-messages/history"
+  },
+  upload: {
+    documents: "/api/upload/documents",
+    delete: "/api/upload/delete",
   },
 };
 
