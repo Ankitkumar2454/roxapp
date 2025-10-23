@@ -250,14 +250,15 @@ const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: theme.background,
-        justifyContent: "center", alignItems: "center"
+        justifyContent: "center", 
+        alignItems: "center"
     },
     card: {
         backgroundColor: theme.cardBackground,
         borderRadius: 20,
         overflow: "hidden",
-        paddingBottom: 40,
-        height: screenHeight
+        paddingBottom: screenHeight * 0.05,
+        height: screenHeight,
     },
     header: {
         height: screenHeight * 0.4,

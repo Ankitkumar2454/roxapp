@@ -2,7 +2,7 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -113,6 +113,9 @@ export default function ChatMessageScreen() {
     } | null>(null);
 
     // Audio recording states
+    const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+    const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [recordingUri, setRecordingUri] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -120,6 +123,7 @@ export default function ChatMessageScreen() {
     const [playbackPosition, setPlaybackPosition] = useState(0);
     const [playbackDuration, setPlaybackDuration] = useState(0);
     const [ringtone, setRingtone] = useState<Audio.Sound | null>(null);
+    console.log("selected media is ::", selectedMedia);
 
     const scrollViewRef = useRef<ScrollView>(null);
     const socketRef = useRef<Socket | null>(null);
@@ -127,6 +131,36 @@ export default function ChatMessageScreen() {
     const forwardedMessageRef = useRef<string | null>(null);
     const recordingIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
     const playbackStatusRef = useRef<Audio.Sound | null>(null);
+
+    // 🎥 Video playback state
+    const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+    const videoRefs = useRef<Record<string, Video | null>>({});
+    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+
+    const toggleVideoPlay = async (id: string) => {
+        const currentVideo = videoRefs.current[id];
+
+        if (!currentVideo) return;
+
+        // Pause currently active video if it's different from the one being played
+        if (activeVideoId && activeVideoId !== id) {
+            const prevVideo = videoRefs.current[activeVideoId];
+            await prevVideo?.pauseAsync();
+        }
+
+        const status = (await currentVideo.getStatusAsync()) as AVPlaybackStatus;
+
+        if (status.isLoaded) {
+            if (status.isPlaying) {
+                await currentVideo.pauseAsync();
+                setActiveVideoId(null);
+            } else {
+                await currentVideo.playAsync();
+                setActiveVideoId(id);
+            }
+        }
+    };
+
 
     const startRingtone = async () => {
         try {
@@ -401,7 +435,7 @@ export default function ChatMessageScreen() {
                     if (msg._id) {
                         socketRef.current?.emit('message:read', {
                             messageId: msg._id,
-                            receiverId: friendId,
+                            senderId: friendId,
                         });
                     }
                 });
@@ -702,15 +736,167 @@ export default function ChatMessageScreen() {
         }
     };
 
+    const playAudio = async (url: string, id: string) => {
+        try {
+            // Prevent tapping multiple times while audio is loading
+            if (isLoadingAudio) return;
+
+            setIsLoadingAudio(true);
+
+            // Stop & unload any currently playing audio (if different)
+            if (sound && activeAudioId && activeAudioId !== id) {
+                const status = await sound.getStatusAsync();
+                if (status.isLoaded) {
+                    await sound.stopAsync();
+                    await sound.unloadAsync();
+                }
+                setSound(null);
+                setActiveAudioId(null);
+                setIsPlaying(false);
+            }
+
+            // If same audio tapped and currently playing → pause
+            if (sound && activeAudioId === id && isPlaying) {
+                await sound.pauseAsync();
+                setIsPlaying(false);
+                setIsLoadingAudio(false);
+                return;
+            }
+
+            // If same audio tapped and currently paused → resume
+            if (sound && activeAudioId === id && !isPlaying) {
+                await sound.playAsync();
+                setIsPlaying(true);
+                setIsLoadingAudio(false);
+                return;
+            }
+
+            // Create a new sound (fresh play)
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: url },
+                { shouldPlay: false }
+            );
+
+            setSound(newSound);
+            setActiveAudioId(id);
+
+            // Wait until fully loaded
+            let status = await newSound.getStatusAsync();
+            let tries = 0;
+            while (!status.isLoaded && tries < 5) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                status = await newSound.getStatusAsync();
+                tries++;
+            }
+
+            // Play now safely
+            await newSound.playAsync();
+            setIsPlaying(true);
+
+            // Update playback status
+            newSound.setOnPlaybackStatusUpdate(async (status) => {
+                if (!status.isLoaded) return;
+
+                setPlaybackPosition(status.positionMillis);
+                setPlaybackDuration(status.durationMillis || 0);
+                setIsPlaying(status.isPlaying);
+
+                if (status.didJustFinish) {
+                    setIsPlaying(false);
+                    setActiveAudioId(null);
+                    await newSound.unloadAsync();
+                    setSound(null);
+                }
+            });
+        } catch (err) {
+            console.error("Audio playback error:", err);
+            setIsPlaying(false);
+            setActiveAudioId(null);
+        } finally {
+            setIsLoadingAudio(false);
+        }
+    };
+
+    // const playAudio = async (url: string, id: string) => {
+    //     try {
+    //         // If another audio is playing — stop & unload it
+    //         if (sound && activeAudioId && activeAudioId !== id) {
+    //             const status = await sound.getStatusAsync();
+    //             if (status.isLoaded) {
+    //                 await sound.stopAsync();
+    //                 await sound.unloadAsync();
+    //             }
+    //             setSound(null);
+    //             setActiveAudioId(null);
+    //             setIsPlaying(false);
+    //         }
+
+    //         // If same audio tapped and currently playing → pause
+    //         if (sound && activeAudioId === id && isPlaying) {
+    //             await sound.pauseAsync();
+    //             setIsPlaying(false);
+    //             return;
+    //         }
+
+    //         // If same audio tapped and currently paused → resume
+    //         if (sound && activeAudioId === id && !isPlaying) {
+    //             await sound.playAsync();
+    //             setIsPlaying(true);
+    //             return;
+    //         }
+
+    //         // Create a new sound for fresh playback
+    //         const { sound: newSound } = await Audio.Sound.createAsync(
+    //             { uri: url },
+    //             { shouldPlay: false } // don't auto-play until fully loaded
+    //         );
+
+    //         setSound(newSound);
+    //         setActiveAudioId(id);
+
+    //         // Wait for loading to complete
+    //         const status = await newSound.getStatusAsync();
+    //         if (!status.isLoaded) {
+    //             await new Promise(resolve => setTimeout(resolve, 300));
+    //         }
+
+    //         // Play now safely
+    //         await newSound.playAsync();
+    //         setIsPlaying(true);
+
+    //         // Track playback status
+    //         newSound.setOnPlaybackStatusUpdate(async (status) => {
+    //             if (!status.isLoaded) return;
+
+    //             setPlaybackPosition(status.positionMillis);
+    //             setPlaybackDuration(status.durationMillis || 0);
+    //             setIsPlaying(status.isPlaying);
+
+    //             if (status.didJustFinish) {
+    //                 setIsPlaying(false);
+    //                 setActiveAudioId(null);
+    //                 await newSound.unloadAsync();
+    //                 setSound(null);
+    //             }
+    //         });
+    //     } catch (err) {
+    //         console.error("Audio playback error:", err);
+    //         setIsPlaying(false);
+    //         setActiveAudioId(null);
+    //     }
+    // };
+
+
+
     const handleSendVoice = async (voiceUrl: string, duration: number) => {
         try {
             console.log('Starting voice upload process...', voiceUrl, duration);
-            
+
             // Upload the voice file to server first
             const uploadedUrl = await uploadMedia(voiceUrl, 'audio', `voice_${Date.now()}.m4a`);
-            
+
             console.log('Voice uploaded successfully:', uploadedUrl);
-            
+
             const tempId = Date.now().toString();
             const newMessage: Message = {
                 id: tempId,
@@ -798,9 +984,10 @@ export default function ChatMessageScreen() {
                 type: ['audio/*'],
                 copyToCacheDirectory: true,
             });
-
             if (!result.canceled && result.assets[0]) {
                 const asset = result.assets[0];
+                console.log(asset.size, "audio size")
+
                 setSelectedMedia({
                     uri: asset.uri,
                     type: 'audio',
@@ -838,14 +1025,51 @@ export default function ChatMessageScreen() {
         }
     };
 
+    const compressAudio = async (uri: string) => {
+        try {
+            const AUDIO_SIZE_LIMIT_MB = 2;
+            const info = await FileSystem.getInfoAsync(uri);
+
+            if (!info.exists) {
+                console.log('File does not exist:', uri);
+                return uri;
+            }
+
+            const originalSizeMB = info.size / 1024 / 1024;
+            console.log('Original size (MB):', originalSizeMB);
+            if (originalSizeMB <= AUDIO_SIZE_LIMIT_MB) {
+                console.log('Small file — skipping compression.');
+                return uri;
+            }
+
+            const compressedUri = FileSystem.cacheDirectory + 'compressed_audio.m4a';
+            await FileSystem.copyAsync({ from: uri, to: compressedUri });
+
+            const compressedInfo = await FileSystem.getInfoAsync(compressedUri);
+            if (compressedInfo.exists) {
+                const compressedSizeMB = compressedInfo.size / 1024 / 1024;
+                console.log('Compressed size (MB):', compressedSizeMB);
+            }
+
+            return compressedUri;
+        } catch (error) {
+            console.log('Audio compression error:', error);
+            return uri; // fallback
+        }
+    };
+
     const uploadMedia = async (mediaUri: string, mediaType: 'image' | 'video' | 'audio' | 'document', fileName: string) => {
         try {
             setIsUploading(true);
             setUploadProgress(0);
+            if (!selectedMedia) return;
 
             // Create FormData for file upload
+            let uploadUri = mediaUri;
+            if (mediaType === 'audio') {
+                uploadUri = await compressAudio(mediaUri);
+            }
 
-            console.log(mediaType, "mediaTypeRand")
             const formData = new FormData();
 
             formData.append('folder', mediaType === 'image' ? 'images' :
@@ -869,7 +1093,7 @@ export default function ChatMessageScreen() {
                     case 'mp4': return 'video/mp4';
                     case 'mov': return 'video/quicktime';
                     case 'avi': return 'video/x-msvideo';
-                    case 'mp3': return 'audio/mpeg';
+                    case 'mp3': return 'audio/mp3';
                     case 'wav': return 'audio/wav';
                     case 'm4a': return 'audio/mp3';
                     default: return mediaType === 'image' ? 'image/jpeg' :
@@ -877,13 +1101,13 @@ export default function ChatMessageScreen() {
                             mediaType === 'audio' ? 'audio/mpeg' : 'application/octet-stream';
                 }
             };
-
+            console.log(mediaUri, 'mediaUri')
             formData.append('files', {
-                uri: mediaUri,
+                uri: uploadUri,
                 type: getMimeType(fileName, mediaType),
                 name: fileName,
             } as any);
-
+            console.log('formData', formData);
             // Upload file to server
             console.log('Uploading media to server', ENDPOINTS.upload.documents);
             const response = await api.post(ENDPOINTS.upload.documents, formData, {
@@ -891,11 +1115,15 @@ export default function ChatMessageScreen() {
                     'Content-Type': 'multipart/form-data',
                 },
                 onUploadProgress: (progressEvent) => {
-                    const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    // const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    const progress = Math.min(
+                        99,
+                        Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1))
+                    );
                     setUploadProgress(progress);
                 },
             });
-
+            setUploadProgress(100);
             console.log('response', response.data);
 
             if (response.data.success && response.data.data.files[0]) {
@@ -1018,17 +1246,17 @@ export default function ChatMessageScreen() {
     const downloadPDF = async (pdfUrl: string, fileName: string) => {
         try {
             setIsDownloadingPDF(true);
-            
+
             // Create a temporary file path
             const fileUri = FileSystem.documentDirectory + fileName;
-            
+
             // Download the PDF
             const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
-            
+
             if (downloadResult.status === 200) {
                 // Check if sharing is available
                 const isAvailable = await Sharing.isAvailableAsync();
-                
+
                 if (isAvailable) {
                     // Share the downloaded file
                     await Sharing.shareAsync(downloadResult.uri, {
@@ -1051,7 +1279,7 @@ export default function ChatMessageScreen() {
 
     const handleDocumentAction = (documentUrl: string, fileName: string) => {
         const extension = fileName.toLowerCase().split('.').pop();
-        
+
         if (extension === 'pdf') {
             downloadAndSharePDF(documentUrl, fileName);
         } else {
@@ -1212,7 +1440,7 @@ export default function ChatMessageScreen() {
     useEffect(() => {
         if (messages.length > 0 && currentUserId && !isLoading) {
             // Only mark as read if there are actually unread messages
-            const hasUnreadMessages = messages.some(msg => 
+            const hasUnreadMessages = messages.some(msg =>
                 msg.senderId !== currentUserId && !msg.isRead
             );
             if (hasUnreadMessages) {
@@ -1315,7 +1543,7 @@ export default function ChatMessageScreen() {
                             }
                         }}
                     >
-                        <Ionicons name="videocam-outline" size={25} color={ currentTheme.primaryText} />
+                        <Ionicons name="videocam-outline" size={25} color={currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.headerIconButton}
@@ -1333,10 +1561,10 @@ export default function ChatMessageScreen() {
                             }
                         }}
                     >
-                        <Ionicons name="call-outline" size={25} color={ currentTheme.primaryText} />
+                        <Ionicons name="call-outline" size={25} color={currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="ellipsis-vertical" size={25} color={ currentTheme.primaryText} />
+                        <Ionicons name="ellipsis-vertical" size={25} color={currentTheme.primaryText} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -1358,7 +1586,7 @@ export default function ChatMessageScreen() {
                     >
                         {messages.map((msg) => {
                             const isMe = msg.senderId === currentUserId;
-                            console.log('MSG', msg);
+                            // console.log('MSG', msg);
                             return (
                                 <TouchableOpacity
                                     key={msg.id}
@@ -1409,16 +1637,36 @@ export default function ChatMessageScreen() {
                                                 </Text>
                                             </View>
                                         ) : (msg.messageType === 'video' || (msg.text && msg.text.match(/\.(mp4|mov|avi|mkv)$/i))) ? (
+
                                             <View style={styles.videoMessageContainer}>
-                                                <Image
-                                                    source={{ uri: msg.mediaThumbnail || msg.mediaUrl || msg.text }}
-                                                    style={styles.messageVideo}
-                                                    resizeMode="cover"
-                                                />
-                                                <View style={styles.videoOverlay}>
-                                                    <Ionicons name="play" size={24} color="#fff" />
-                                                </View>
+                                                <TouchableOpacity
+                                                    onPress={() => toggleVideoPlay(msg._id || msg.id)}
+                                                    activeOpacity={0.9}
+                                                >
+                                                    <Video
+                                                        ref={(ref) => {
+                                                            videoRefs.current[msg._id || msg.id] = ref ?? null;
+                                                        }}
+                                                        source={{ uri: msg.mediaUrl || msg.text }}
+                                                        style={styles.messageVideo}
+                                                        resizeMode={ResizeMode.COVER}
+                                                        useNativeControls={false}
+                                                        shouldPlay={false}
+                                                        isLooping
+                                                    />
+                                                    <View style={styles.videoOverlay}>
+                                                        <Ionicons
+                                                            name={activeVideoId === (msg._id || msg.id) ? 'pause-circle' : 'play-circle'}
+                                                            size={48}
+                                                            color="#fff"
+                                                        />
+                                                    </View>
+                                                </TouchableOpacity>
                                             </View>
+
+
+
+
                                         ) : (msg.messageType === 'audio' || (msg.text && msg.text.match(/\.(mp3|wav|m4a|aac|ogg)$/i))) ? (
                                             <View style={styles.audioMessageContainer}>
                                                 <TouchableOpacity
@@ -1427,16 +1675,25 @@ export default function ChatMessageScreen() {
                                                         // Use content field (S3 URL) for playback, fallback to mediaUrl or text
                                                         const audioUrl = msg.content || msg.mediaUrl || msg.text;
                                                         if (audioUrl) {
-                                                            playVoiceMessage(audioUrl);
+                                                            playAudio(audioUrl, msg._id || msg.id); // pass message ID
                                                         }
                                                     }}
                                                 >
-                                                    <Ionicons
-                                                        name={isPlaying && sound ? "pause" : "play"}
-                                                        size={20}
-                                                        color={isMe ? "#fff" : "#2196F3"}
-                                                    />
+                                                    {isLoadingAudio && activeAudioId === (msg._id || msg.id) ? (
+                                                        <ActivityIndicator size={18} color={isMe ? "#fff" : "#2196F3"} />
+                                                    ) : (
+                                                        <Ionicons
+                                                            name={
+                                                                activeAudioId === (msg._id || msg.id) && isPlaying
+                                                                    ? "pause"
+                                                                    : "play"
+                                                            }
+                                                            size={20}
+                                                            color={isMe ? "#fff" : "#2196F3"}
+                                                        />
+                                                    )}
                                                 </TouchableOpacity>
+
                                                 <View style={styles.audioWaveform}>
                                                     <View style={[styles.audioBar, { height: 8 }]} />
                                                     <View style={[styles.audioBar, { height: 12 }]} />
@@ -1444,50 +1701,87 @@ export default function ChatMessageScreen() {
                                                     <View style={[styles.audioBar, { height: 10 }]} />
                                                     <View style={[styles.audioBar, { height: 4 }]} />
                                                 </View>
-                                                <Text style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}>
+
+                                                <Text
+                                                    style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}
+                                                >
                                                     Audio Track
                                                 </Text>
                                             </View>
-                                         ) : (msg.messageType === 'document' || (msg.text && msg.text.match(/\.(pdf|doc|docx|txt|xls|xlsx)$/i))) ? (
-                                             <View style={styles.documentMessageContainer}>
-                                                 <View style={styles.documentIconContainer}>
-                                                     <Ionicons name="document-text" size={32} color={isMe ? "#fff" : "#607D8B"} />
-                                                 </View>
-                                                 <View style={styles.documentInfoContainer}>
-                                                     <Text style={[styles.documentFileName, isMe ? styles.myText : styles.theirText]} numberOfLines={1}>
-                                                         {msg.text.split('/').pop() || 'Document'}
-                                                     </Text>
-                                                     <Text style={[styles.documentFileSize, isMe ? styles.myTime : styles.theirTime]}>
-                                                         Document File
-                                                     </Text>
-                                                 </View>
-                                                 <View style={styles.documentActionButtons}>
-                                                     <TouchableOpacity
-                                                         style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
-                                                         onPress={() => {
-                                                             const fileName = msg.text.split('/').pop() || 'document.pdf';
-                                                             handleDocumentAction(msg.text, fileName);
-                                                         }}
-                                                         disabled={isDownloadingPDF}
-                                                     >
-                                                         <Ionicons name="eye" size={18} color={isMe ? "#fff" : "#607D8B"} />
-                                                     </TouchableOpacity>
-                                                     <TouchableOpacity
-                                                         style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
-                                                         onPress={() => {
-                                                             const fileName = msg.text.split('/').pop() || 'document.pdf';
-                                                             downloadPDF(msg.text, fileName);
-                                                         }}
-                                                         disabled={isDownloadingPDF}
-                                                     >
-                                                         {isDownloadingPDF ? (
-                                                             <ActivityIndicator size="small" color={isMe ? "#fff" : "#607D8B"} />
-                                                         ) : (
-                                                             <Ionicons name="download" size={18} color={isMe ? "#fff" : "#607D8B"} />
-                                                         )}
-                                                     </TouchableOpacity>
-                                                 </View>
-                                             </View>
+
+
+
+                                            // <View style={styles.audioMessageContainer}>
+                                            //     <TouchableOpacity
+                                            //         style={styles.audioPlayButton}
+                                            //         onPress={() => {
+                                            //             // Use content field (S3 URL) for playback, fallback to mediaUrl or text
+                                            //             const audioUrl = msg.content || msg.mediaUrl || msg.text;
+                                            //             if (audioUrl) {
+                                            //                 playVoiceMessage(audioUrl);
+                                            //             }
+                                            //         }}
+                                            //     >
+                                            //         <Ionicons
+                                            //             name={isPlaying && sound ? "pause" : "play"}
+                                            //             size={20}
+                                            //             color={isMe ? "#fff" : "#2196F3"}
+                                            //         />
+                                            //     </TouchableOpacity>
+                                            //     <View style={styles.audioWaveform}>
+                                            //         <View style={[styles.audioBar, { height: 8 }]} />
+                                            //         <View style={[styles.audioBar, { height: 12 }]} />
+                                            //         <View style={[styles.audioBar, { height: 6 }]} />
+                                            //         <View style={[styles.audioBar, { height: 10 }]} />
+                                            //         <View style={[styles.audioBar, { height: 4 }]} />
+                                            //     </View>
+                                            //     <Text style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}>
+                                            //         Audio Track
+                                            //     </Text>
+                                            // </View>
+
+
+
+                                        ) : (msg.messageType === 'document' || (msg.text && msg.text.match(/\.(pdf|doc|docx|txt|xls|xlsx)$/i))) ? (
+                                            <View style={styles.documentMessageContainer}>
+                                                <View style={styles.documentIconContainer}>
+                                                    <Ionicons name="document-text" size={32} color={isMe ? "#fff" : "#607D8B"} />
+                                                </View>
+                                                <View style={styles.documentInfoContainer}>
+                                                    <Text style={[styles.documentFileName, isMe ? styles.myText : styles.theirText]} numberOfLines={1}>
+                                                        {msg.text.split('/').pop() || 'Document'}
+                                                    </Text>
+                                                    <Text style={[styles.documentFileSize, isMe ? styles.myTime : styles.theirTime]}>
+                                                        Document File
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.documentActionButtons}>
+                                                    <TouchableOpacity
+                                                        style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
+                                                        onPress={() => {
+                                                            const fileName = msg.text.split('/').pop() || 'document.pdf';
+                                                            handleDocumentAction(msg.text, fileName);
+                                                        }}
+                                                        disabled={isDownloadingPDF}
+                                                    >
+                                                        <Ionicons name="eye" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
+                                                        onPress={() => {
+                                                            const fileName = msg.text.split('/').pop() || 'document.pdf';
+                                                            downloadPDF(msg.text, fileName);
+                                                        }}
+                                                        disabled={isDownloadingPDF}
+                                                    >
+                                                        {isDownloadingPDF ? (
+                                                            <ActivityIndicator size="small" color={isMe ? "#fff" : "#607D8B"} />
+                                                        ) : (
+                                                            <Ionicons name="download" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                        )}
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
                                         ) : (
                                             <View style={styles.messageContentContainer}>
                                                 {msg.text.startsWith('Forwarded: ') && (
@@ -1726,7 +2020,7 @@ export default function ChatMessageScreen() {
                                             <Ionicons name="musical-notes" size={64} color="#fff" />
                                             <Text style={styles.audioPreviewText}>{selectedMedia.name}</Text>
                                             <Text style={styles.audioPreviewSubtext}>
-                                                {(selectedMedia.size / 1024 / 1024).toFixed(2)} MB
+                                                {(selectedMedia.size / 1024 / 1024)} MB
                                             </Text>
                                         </View>
                                     ) : (
@@ -1734,7 +2028,7 @@ export default function ChatMessageScreen() {
                                             <Ionicons name="document-text" size={64} color="#fff" />
                                             <Text style={styles.documentPreviewText}>{selectedMedia.name}</Text>
                                             <Text style={styles.documentPreviewSubtext}>
-                                                {(selectedMedia.size / 1024 / 1024).toFixed(2)} MB
+                                                {(selectedMedia.size / 1024 / 1024)} MB
                                             </Text>
                                         </View>
                                     )}

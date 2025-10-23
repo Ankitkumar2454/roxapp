@@ -584,7 +584,6 @@ export default function GroupChatScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* <StatusBar backgroundColor="#2196F3" barStyle={Platform.OS === 'ios' ? 'light-content' : 'dark-content'} /> */}
             <StatusBar
                 barStyle={theme === 'dark' ? "light-content" : "dark-content"}
                 // backgroundColor="transparent"

@@ -91,8 +91,6 @@ export default function ChatScreen() {
     }
 
     const filtered = friends.filter(friend =>
-
-    const filtered = friends.filter(friend =>
       friend.name.toLowerCase().includes(searchText.toLowerCase()) ||
       friend.username.toLowerCase().includes(searchText.toLowerCase())
     );
@@ -263,8 +261,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   listHeader: {
     paddingHorizontal: screenWidth * 0.05,
     paddingVertical: screenHeight * 0.012,
-    paddingHorizontal: 20,
-    paddingVertical: 10
+
   },
   headerContent: {
     flexDirection: 'row',
@@ -307,14 +304,10 @@ const createStyles = (theme: any) => StyleSheet.create({
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    // backgroundColor: theme.chatItemBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    //borderWidth: 0.5,
-    //marginVertical: 1,
     borderBottomColor: theme.chatItemBorder,
-    //elevation: 1
   },
 
   // Avatar Styles
@@ -327,7 +320,6 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 25,
   },
 
-  // Chat Content Styles
   chatContent: {
     flex: 1,
     justifyContent: 'center',
