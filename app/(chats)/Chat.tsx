@@ -9,11 +9,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import React, { useContext, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-
-
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 export default function ChatScreen() {
+  const insets = useSafeAreaInsets();
   const [friends, setFriends] = useState<Friend[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -44,6 +45,7 @@ export default function ChatScreen() {
 
       if (response.data.success && response.data.data) {
         const currentUserData = await Storage.getItem("user");
+        console.log(response.data.data, "currentUserData")
         console.log(response.data.data, "currentUserData")
 
         const transformedFriends: Friend[] = response.data.data
@@ -87,6 +89,8 @@ export default function ChatScreen() {
       setFilteredFriends(friends);
       return;
     }
+
+    const filtered = friends.filter(friend =>
 
     const filtered = friends.filter(friend =>
       friend.name.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -230,7 +234,9 @@ export default function ChatScreen() {
             tintColor="#009BFF"
           />
         }
-        contentContainerStyle={filteredFriends.length === 0 ? styles.emptyListContent : undefined}
+        contentContainerStyle={filteredFriends.length === 0 ? styles.emptyListContent : {
+          paddingBottom: insets.bottom + 67// 60 = tab bar height
+        }}
       />
 
       <GlobalMessage
@@ -255,6 +261,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     paddingBottom: 0,
   },
   listHeader: {
+    paddingHorizontal: screenWidth * 0.05,
+    paddingVertical: screenHeight * 0.012,
     paddingHorizontal: 20,
     paddingVertical: 10
   },
@@ -266,9 +274,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
 
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: screenWidth * 0.1,
+    height: screenWidth * 0.1,
+    borderRadius: screenWidth * 0.05,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
