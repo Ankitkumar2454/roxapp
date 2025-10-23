@@ -2,13 +2,14 @@ import api from "@/api/axiosInstance";
 import ENDPOINTS from "@/api/endPoints";
 import GlobalMessage from "@/CustomComponents/message";
 import { Storage } from "@/hooks/useLocalAsyncStorage";
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { loginPayload, loginResponse, loginResponseData } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
-
 
 const screenWidth = Dimensions.get("window").width;
 const screenHeight = Dimensions.get("window").height
@@ -26,6 +27,9 @@ export const greetings = [
 ];
 
 export default function LoginScreen() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [isReady, setIsReady] = useState(false);
@@ -142,7 +146,7 @@ export default function LoginScreen() {
 
     return (
         <KeyboardAvoidingView
-            style={{ flex: 1, backgroundColor: "#C9EBFF" }}
+            style={{ flex: 1, backgroundColor: currentTheme.containerBackground }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
         >
@@ -152,7 +156,7 @@ export default function LoginScreen() {
             >
                 <View style={[styles.card, { width: screenWidth }]}>
                     <LinearGradient
-                        colors={["#009BFF", "#0066CC"]}
+                        colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.header}
@@ -175,7 +179,7 @@ export default function LoginScreen() {
                         <TextInput
                             style={styles.input}
                             placeholder="Enter your username here"
-                            placeholderTextColor="#ccc"
+                            placeholderTextColor={currentTheme.placeholderText}
                             value={username}
                             onChangeText={setUsername}
                         />
@@ -185,7 +189,7 @@ export default function LoginScreen() {
                         <TextInput
                             style={[styles.input, { flex: 1 }]}
                             placeholder="Enter your password here"
-                            placeholderTextColor="#ccc"
+                            placeholderTextColor={currentTheme.placeholderText}
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry={!showPassword} // 👈 toggle visibility
@@ -208,7 +212,7 @@ export default function LoginScreen() {
 
                         <TouchableOpacity onPress={handleLogin} style={{ borderRadius: 10, overflow: "hidden" }}>
                             <LinearGradient
-                                colors={["#009BFF", "#0066CC"]}
+                                colors={[currentTheme.buttonGradientStart, currentTheme.buttonGradientEnd]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.arrowBtn}
@@ -216,8 +220,8 @@ export default function LoginScreen() {
                                 <Animated.View style={!loading && { transform: [{ translateX: shakeAnim }] }}>
                                     {
                                         loading ?
-                                            <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 2 }} /> :
-                                            <Ionicons name="arrow-forward" size={18} color="#fff" />
+                                            <ActivityIndicator size="small" color={currentTheme.buttonText} style={{ marginLeft: 2 }} /> :
+                                            <Ionicons name="arrow-forward" size={18} color={currentTheme.buttonText} />
                                     }
                                 </Animated.View>
                             </LinearGradient>
@@ -242,9 +246,19 @@ export default function LoginScreen() {
     );
 }
 
-const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "white", justifyContent: "center", alignItems: "center" },
-    card: { backgroundColor: "#fff", borderRadius: 20, overflow: "hidden", paddingBottom: 40, height: screenHeight },
+const createStyles = (theme: any) => StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: theme.background,
+        justifyContent: "center", alignItems: "center"
+    },
+    card: {
+        backgroundColor: theme.cardBackground,
+        borderRadius: 20,
+        overflow: "hidden",
+        paddingBottom: 40,
+        height: screenHeight
+    },
     header: {
         height: screenHeight * 0.4,
         borderBottomLeftRadius: 0,
@@ -254,19 +268,65 @@ const styles = StyleSheet.create({
         paddingHorizontal: 25,
         paddingBottom: 30,
         position: "relative",
-        shadowColor: "#347a98ff",
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 12 },
         shadowOpacity: 0.25,
         shadowRadius: 20,
         elevation: 20,
     },
-    loginText: { fontSize: 38, color: "#fff", fontWeight: "300", position: "absolute", top: 100, left: 25 },
-    subtitle: { fontSize: 30, color: "#fff", fontWeight: "200" },
-    infoText: { color: "#3e3939ff", textAlign: "left", marginTop: 45, marginHorizontal: 25, fontSize: 14 },
-    inputRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1.2, borderColor: "#aaa", marginHorizontal: 25, marginTop: 25, paddingBottom: 6 },
-    input: { flex: 1, color: "#000", fontSize: 15 },
-    iconContainer: { paddingHorizontal: 6 },
-    footerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginHorizontal: 25, marginTop: 25 },
-    checkboxRow: { flexDirection: "row", alignItems: "center" },
-    arrowBtn: { backgroundColor: "#52b5f7ff", width: 100, height: 50, borderRadius: 10, justifyContent: "center", alignItems: "center" },
+    loginText: {
+        fontSize: 38,
+        color: theme.headerText,
+        fontWeight: "300",
+        position: "absolute",
+        top: 100,
+        left: 25
+    },
+    subtitle: {
+        fontSize: 30,
+        color: theme.headerText,
+        fontWeight: "200"
+    },
+    infoText: {
+        color: theme.secondaryText,
+        textAlign: "left",
+        marginTop: 45,
+        marginHorizontal: 25,
+        fontSize: 14
+    },
+    inputRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        borderBottomWidth: 1.2,
+        borderColor: theme.inputBorder,
+        marginHorizontal: 25,
+        marginTop: 25,
+        paddingBottom: 6
+    },
+    input: {
+        flex: 1,
+        color: theme.inputText,
+        fontSize: 15
+    },
+    iconContainer: {
+        paddingHorizontal: 6
+    },
+    footerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginHorizontal: 25,
+        marginTop: 25
+    },
+    checkboxRow: {
+        flexDirection: "row",
+        alignItems: "center"
+    },
+    arrowBtn: {
+        width: 100,
+        height: 50,
+        borderRadius: 10,
+        justifyContent: "center",
+        alignItems: "center"
+    },
 });

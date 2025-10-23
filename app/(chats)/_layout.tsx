@@ -1,16 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { Tabs, usePathname, useRouter } from "expo-router";
-import { useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useContext } from 'react';
+import { ThemeProvider, ThemeContext } from "@/src/services/ThemeContext";
+import { lightTheme, darkTheme } from "@/src/constants/color";
 import { Animated, Easing, StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ChatsLayout() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const [searchText, setSearchText] = useState("");
     const router = useRouter();
     const pathname = usePathname();
     const insets = useSafeAreaInsets();
-    
+
     // Animation values
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const rotateAnim = useRef(new Animated.Value(0)).current;
@@ -64,13 +69,12 @@ export default function ChatsLayout() {
 
     return (
         <SafeAreaView style={styles.container} edges={['left', 'right']}>
-            <StatusBar 
-                barStyle="light-content" 
-                backgroundColor="transparent" 
-                translucent={true}
+            <StatusBar
+                barStyle={theme === "dark" ? "light-content" : "dark-content"}
+                backgroundColor={currentTheme.background}
             />
             <LinearGradient
-                colors={["#009BFF", "#0066CC"]}
+                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={[styles.statusBarGradient, { height: insets.top }]}
@@ -79,18 +83,20 @@ export default function ChatsLayout() {
                 screenOptions={({ route }) => ({
                     headerShown: route.name !== "/(personalChats)/ChatInPerson",
                     tabBarShowLabel: true,
-                    tabBarActiveTintColor: "#007AFF",
-                    tabBarInactiveTintColor: "#A0A0A0",
+                    tabBarActiveTintColor: currentTheme.iconColor,
+                    tabBarInactiveTintColor: currentTheme.tertiaryText,
                     tabBarStyle: {
-                        // backgroundColor: "#fff",
+                        backgroundColor: currentTheme.cardBackground,
                         borderTopLeftRadius: 20,
                         borderTopRightRadius: 20,
                         // paddingBottom: 8,
-                        // shadowColor: "#000",
+                        shadowColor: currentTheme.shadowColor,
                         // shadowOffset: { width: 0, height: -2 },
                         // shadowOpacity: 0.1,
-                        // shadowRadius: 8,
-                        // elevation: 5,
+                        shadowRadius: 8,
+                        borderWidth: 1,
+                        borderColor: currentTheme.chatItemBorder,
+                        elevation: 5,
                     },
                     tabBarLabelStyle: {
                         fontSize: 14,
@@ -98,8 +104,7 @@ export default function ChatsLayout() {
                     },
                     headerStyle: {
                         height: 90,
-                        paddingBottom: 10,
-                        shadowColor: "#000",
+                        shadowColor: currentTheme.shadowColor,
                         shadowOffset: { width: 0, height: -2 },
                         shadowOpacity: 0.1,
                         shadowRadius: 8,
@@ -107,27 +112,28 @@ export default function ChatsLayout() {
                     },
                     headerBackground: () => (
                         <LinearGradient
-                            colors={["#009BFF", "#0066CC"]}
+                            colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                             start={{ x: 0, y: 0 }}
                             end={{ x: 1, y: 1 }}
                             style={{ flex: 1 }}
                         />
                     ),
-                    headerTintColor: "#fff",
+                    headerTintColor: currentTheme.headerText,
                     headerTitleStyle: {
                         fontWeight: "600",
                         fontSize: 18,
+                        color: currentTheme.headerText,
                     },
                     headerLeft: () => (
                         <View style={styles.headerLeft}>
-                            <Ionicons name="chatbubble-ellipses" size={24} color="#fff" />
+                            <Ionicons name="chatbubble-ellipses" size={24} color={currentTheme.headerText} />
                             <Text style={styles.headerTitle}>RoXX</Text>
                         </View>
                     ),
                     headerRight: () => (
 
 
-                        (pathname !== "/Profile" ) && <View style={styles.headerRight}>
+                        (pathname !== "/Profile") && <View style={styles.headerRight}>
 
                             <View style={styles.listHeader}>
                                 <Text style={styles.titleText}>
@@ -142,7 +148,6 @@ export default function ChatsLayout() {
                                 <Ionicons name="ellipsis-vertical" size={24} color="#fff" />
                             </TouchableOpacity> */}
                         </View>
-                        // <></>
                     ),
                     headerTitle: "",
                     tabBarIcon: ({ color, focused }) => {
@@ -176,13 +181,13 @@ export default function ChatsLayout() {
             </Tabs>
             {
                 (pathname !== "/Profile" && pathname !== "/Support") && (
-                    <Animated.View 
+                    <Animated.View
                         style={[
                             styles.fab,
                             {
                                 transform: [
                                     { scale: Animated.multiply(scaleAnim, pulseAnim) },
-                                    { 
+                                    {
                                         rotate: rotateAnim.interpolate({
                                             inputRange: [0, 1],
                                             outputRange: ['0deg', '45deg']
@@ -198,7 +203,7 @@ export default function ChatsLayout() {
                             style={styles.fabTouchable}
                         >
                             <LinearGradient
-                                colors={["#009BFF", "#0066CC"]}
+                                colors={[currentTheme.buttonGradientStart, currentTheme.buttonGradientEnd]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.fabGradient}
@@ -215,7 +220,7 @@ export default function ChatsLayout() {
                                         ]
                                     }}
                                 >
-                                    <Ionicons name="add" size={28} color="#fff" />
+                                    <Ionicons name="add" size={28} color={currentTheme.buttonText} />
                                 </Animated.View>
                             </LinearGradient>
                         </TouchableOpacity>
@@ -227,10 +232,10 @@ export default function ChatsLayout() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: 'transparent',
+        backgroundColor: theme.background,
     },
     statusBarGradient: {
         position: 'absolute',
@@ -244,25 +249,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginLeft: 16,
     },
-    searchContainer: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "rgba(255,255,255,0.2)",
-        borderRadius: 20,
-        paddingHorizontal: 10,
-        height: 36,
-    },
-    searchIcon: {
-        marginRight: 6,
-    },
-    searchInput: {
-        color: "#fff",
-        width: 160,
-        fontSize: 14,
-        paddingVertical: 2,
-    },
+
     headerTitle: {
-        color: "#fff",
+        color: theme.headerText,
         fontSize: 18,
         fontWeight: "600",
         marginLeft: 8,
@@ -295,7 +284,7 @@ const styles = StyleSheet.create({
         borderRadius: 32, // Perfect circle
         justifyContent: "center",
         alignItems: "center",
-        shadowColor: "#009BFF",
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 8 },
         shadowOpacity: 0.3,
         shadowRadius: 16,
@@ -306,15 +295,11 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         paddingBottom: 8,
         color: "#fff",
-
-        // backgroundColor: '#fff',
-        // borderBottomWidth: 1,
-        // borderBottomColor: '#f0f0f0',
     },
     titleText: {
         fontSize: 18,
         fontWeight: "600",
         marginLeft: 8,
-        color: "#fff",
+        color: theme.headerText,
     }
 });

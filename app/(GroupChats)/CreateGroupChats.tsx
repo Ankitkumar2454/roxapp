@@ -1,18 +1,21 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
-import { FriendGroupChat } from '@/utils/types';
+import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
+import { GroupData, Member } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useContext, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Image,
-    KeyboardAvoidingView,
     Modal,
-    Platform,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -22,51 +25,98 @@ import {
 } from 'react-native';
 
 
-export default function CreateGroupScreen() {
-    const [groupName, setGroupName] = useState('');
-    const [groupDescription, setGroupDescription] = useState('');
-    const [selectedMembers, setSelectedMembers] = useState<FriendGroupChat[]>([]);
-    const [showMemberModal, setShowMemberModal] = useState(false);
-    const [friends, setFriends] = useState<FriendGroupChat[]>([]);
-    const [filteredFriends, setFilteredFriends] = useState<FriendGroupChat[]>([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [loadingFriends, setLoadingFriends] = useState(false);
-    const [loadingCreate, setLoadingCreate] = useState(false);
+interface Friend {
+    _id: string;
+    username: string;
+    fullName: string;
+    profileImage?: string;
+    isActive: boolean;
+}
+
+export default function GroupInfoScreen() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
+    const router = useRouter();
+    const params = useLocalSearchParams();
+    const groupId = params.groupId as string;
+
+    const [groupData, setGroupData] = useState<GroupData | null>(null);
+    const [currentUser, setCurrentUser] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [messageVisible, setMessageVisible] = useState(false);
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
 
+    // Add Members Modal
+    const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+    const [availableFriends, setAvailableFriends] = useState<Friend[]>([]);
+    const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [loadingFriends, setLoadingFriends] = useState(false);
+    const [addingMember, setAddingMember] = useState<string | null>(null);
+
+    const [removingMember, setRemovingMember] = useState<string | null>(null);
+    const [togglingAdmin, setTogglingAdmin] = useState<string | null>(null);
+
     useEffect(() => {
-        if (showMemberModal) {
-            fetchFriends();
-        }
-    }, [showMemberModal]);
+        initializeScreen();
+    }, []);
 
     useEffect(() => {
         filterFriends();
-    }, [searchQuery, friends]);
+    }, [searchQuery, availableFriends]);
 
-    const showMessage = (type: 'success' | 'error' | 'info', message: string) => {
-        setMessageType(type);
-        setMessageText(message);
-        setMessageVisible(true);
+    const initializeScreen = async () => {
+        const user = await Storage.getItem("user");
+        setCurrentUser(user);
+        if (groupId) {
+            await fetchGroupData();
+        }
     };
 
-    const fetchFriends = async () => {
+    const fetchGroupData = async () => {
+        try {
+            setLoading(true);
+            const response = await api.get(`${ENDPOINTS.groups.get}${groupId}`);
+
+            if (response.data.success && response.data.data) {
+                setGroupData(response.data.data);
+            } else {
+                showMessage('error', 'Failed to load group data');
+            }
+        } catch (error: any) {
+            console.log('Error fetching group:', error);
+            showMessage('error', error?.response?.data?.message || 'Failed to load group');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await fetchGroupData();
+        setRefreshing(false);
+    };
+
+    const fetchAvailableFriends = async () => {
         try {
             setLoadingFriends(true);
-            const res = await api.get(ENDPOINTS.friends.getAll);
-            
-            if (res.data.success && res.data.data) {
-                const friendsList = res.data.data.filter(
-                    (friend: FriendGroupChat) => !selectedMembers.find((m) => m._id === friend._id)
+            const response = await api.get(ENDPOINTS.friends.getAll);
+
+            if (response.data.success && response.data.data) {
+                // Filter out users who are already members
+                const memberIds = groupData?.members.map(m => m._id) || [];
+                const available = response.data.data.filter(
+                    (friend: Friend) => !memberIds.includes(friend._id)
                 );
-                setFriends(friendsList);
-                setFilteredFriends(friendsList);
+                setAvailableFriends(available);
+                setFilteredFriends(available);
             }
         } catch (error: any) {
             console.log('Error fetching friends:', error);
-            showMessage('error', error?.response?.data?.message || 'Failed to load friends');
+            showMessage('error', 'Failed to load friends');
         } finally {
             setLoadingFriends(false);
         }
@@ -74,9 +124,9 @@ export default function CreateGroupScreen() {
 
     const filterFriends = () => {
         if (searchQuery.trim() === '') {
-            setFilteredFriends(friends);
+            setFilteredFriends(availableFriends);
         } else {
-            const filtered = friends.filter((friend) =>
+            const filtered = availableFriends.filter((friend) =>
                 friend.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 friend.username.toLowerCase().includes(searchQuery.toLowerCase())
             );
@@ -84,92 +134,247 @@ export default function CreateGroupScreen() {
         }
     };
 
-    const handleAddMember = (friend: FriendGroupChat) => {
-        setSelectedMembers([...selectedMembers, friend]);
-        setFriends(friends.filter((f) => f._id !== friend._id));
-        setFilteredFriends(filteredFriends.filter((f) => f._id !== friend._id));
+    const showMessage = (type: 'success' | 'error' | 'info', text: string) => {
+        setMessageType(type);
+        setMessageText(text);
+        setMessageVisible(true);
     };
 
-    const handleRemoveMember = (memberId: string) => {
-        const removedMember = selectedMembers.find((m) => m._id === memberId);
-        if (removedMember) {
-            setSelectedMembers(selectedMembers.filter((m) => m._id !== memberId));
-            setFriends([...friends, removedMember]);
-            setFilteredFriends([...filteredFriends, removedMember]);
-        }
+    const isUserAdmin = () => {
+        if (!groupData || !currentUser) return false;
+        return groupData.admins.some(admin => admin._id === currentUser._id || admin._id === currentUser.id);
     };
 
-    const handleCreateGroup = async () => {
-        if (!groupName.trim()) {
-            showMessage('info', 'Please enter a group name');
-            return;
-        }
-
-        if (selectedMembers.length < 1) {
-            showMessage('info', 'Please add at least 1 members to create a group');
-            return;
-        }
-
-        try {
-            setLoadingCreate(true);
-            const memberIds = selectedMembers.map((m) => m._id);
-
-            const res = await api.post(ENDPOINTS.groups.create, {
-                name: groupName.trim(),
-                memberIds: memberIds,
-                description: groupDescription.trim() || '',
-            });
-
-            if (res.data.success) {
-                showMessage('success', 'Group created successfully!');
-                setTimeout(() => {
-                    router.back();
-                }, 1500);
-            } else {
-                showMessage('error', res.data.message || 'Failed to create group');
-            }
-        } catch (error: any) {
-            console.log('Error creating group:', error);
-            showMessage('error', error?.response?.data?.message || 'Failed to create group');
-        } finally {
-            setLoadingCreate(false);
-        }
+    const isMemberAdmin = (memberId: string) => {
+        if (!groupData) return false;
+        return groupData.admins.some(admin => admin._id === memberId);
     };
 
     const getAvatarUrl = (profileImage?: string, fullName?: string) => {
-        if (profileImage) {
-            return profileImage;
-        }
+        if (profileImage) return profileImage;
         return `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName || 'User')}&background=009BFF&color=fff&size=128`;
     };
 
-    const renderSelectedMember = ({ item }: { item: FriendGroupChat }) => (
-        <View style={styles.selectedMemberItem}>
-            <Image
-                source={{ uri: getAvatarUrl(item.profileImage, item.fullName) }}
-                style={styles.selectedMemberAvatar}
-            />
-            <View style={styles.selectedMemberInfo}>
-                <Text style={styles.selectedMemberName} numberOfLines={1}>
-                    {item.fullName}
-                </Text>
-                <Text style={styles.selectedMemberUsername} numberOfLines={1}>
-                    @{item.username}
-                </Text>
-            </View>
-            <TouchableOpacity
-                onPress={() => handleRemoveMember(item._id)}
-                style={styles.removeMemberButton}
-            >
-                <Ionicons name="close-circle" size={24} color="#FF3B30" />
-            </TouchableOpacity>
-        </View>
-    );
+    const handleAddMember = async (friendId: string, friendName: string) => {
+        try {
+            setAddingMember(friendId);
 
-    const renderFriend = ({ item }: { item: FriendGroupChat }) => (
+            const response = await api.post(ENDPOINTS.groups.addMember, {
+                groupId: groupId,
+                userId: friendId
+            });
+            console.log(response)
+
+            if (response.data.success) {
+                showMessage('success', `${friendName} added to group`);
+                await fetchGroupData();
+                setShowAddMembersModal(false);
+            } else {
+                showMessage('error', response.data.message || 'Failed to add member');
+            }
+        } catch (error: any) {
+            console.log(error)
+            showMessage('error', error?.response?.data?.message || 'Failed to add member');
+        } finally {
+            setAddingMember(null);
+        }
+    };
+
+    const handleRemoveMember = (member: Member) => {
+        Alert.alert(
+            'Remove Member',
+            `Are you sure you want to remove ${member.fullName} from the group?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Remove',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            setRemovingMember(member._id);
+
+                            const response = await api.post(ENDPOINTS.groups.removeMember, {
+                                groupId: groupId,
+                                userId: member._id
+                            });
+
+                            if (response.data.success) {
+                                showMessage('success', `${member.fullName} removed from group`);
+                                await fetchGroupData();
+                            } else {
+                                showMessage('error', response.data.message || 'Failed to remove member');
+                            }
+                        } catch (error: any) {
+                            showMessage('error', error?.response?.data?.message || 'Failed to remove member');
+                        } finally {
+                            setRemovingMember(null);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const handleLeaveGroup = () => {
+        Alert.alert(
+            'Exit Group',
+            `Are you sure you want to exit from the group?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Exit',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+
+                            const response = await api.post(`${ENDPOINTS.groups.leaveGroup}${groupData?._id}/leave`, {
+                                userId: currentUser._id
+                            });
+
+                            if (response.data.success) {
+                                showMessage('success', `${currentUser.fullName} removed from group`);
+                                setTimeout(() => {
+                                    router.replace("/(chats)/Groups");
+                                }, 2500)
+                            } else {
+                                showMessage('error', response.data.message || 'Failed to remove member');
+                            }
+                        } catch (error: any) {
+                            showMessage('error', error?.response?.data?.message || 'Failed to remove member');
+                        } finally {
+                            setRemovingMember(null);
+                        }
+                    }
+                }
+            ]
+        );
+    }
+
+    const handleToggleAdmin = async (member: Member) => {
+        const isAdmin = isMemberAdmin(member._id);
+        const action = isAdmin ? 'remove admin rights from' : 'make admin';
+
+        Alert.alert(
+            isAdmin ? 'Remove Admin' : 'Make Admin',
+            `Are you sure you want to ${action} ${member.fullName}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Confirm',
+                    onPress: async () => {
+                        try {
+                            setTogglingAdmin(member._id);
+
+                            const endpoint = isAdmin
+                                ? ENDPOINTS.groups.removeAdmin
+                                : ENDPOINTS.groups.makeAdmin;
+
+                            const response = await api.post(endpoint, {
+                                groupId: groupId,
+                                userId: member._id
+                            });
+
+                            if (response.data.success) {
+                                showMessage('success', isAdmin
+                                    ? `${member.fullName} is no longer an admin`
+                                    : `${member.fullName} is now an admin`);
+                                await fetchGroupData();
+                            } else {
+                                showMessage('error', response.data.message || 'Failed to update admin status');
+                            }
+                        } catch (error: any) {
+                            showMessage('error', error?.response?.data?.message || 'Failed to update admin status');
+                        } finally {
+                            setTogglingAdmin(null);
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const isCreator = () => {
+        if (!groupData || !currentUser) return false;
+        console.log(groupData.createdBy._id, currentUser, "harsh"
+        )
+        return currentUser.id === groupData?.createdBy._id;
+    }
+
+    const renderMember = ({ item }: { item: Member }) => {
+        const isAdmin = isMemberAdmin(item._id);
+        const isCreator = item._id === groupData?.createdBy._id;
+        const isCurrentUserAdmin = isUserAdmin();
+        const isCurrentUser = item._id === currentUser?._id || item._id === currentUser?.id;
+
+        return (
+            <View style={styles.memberItem}>
+                <View style={styles.memberLeft}>
+                    <View style={styles.memberAvatarContainer}>
+                        <Image
+                            source={{ uri: getAvatarUrl(item.profileImage, item.fullName) }}
+                            style={styles.memberAvatar}
+                        />
+                        {isAdmin && (
+                            <View style={styles.adminBadge}>
+                                <Ionicons name="star" size={12} color="#fff" />
+                            </View>
+                        )}
+                    </View>
+                    <View style={styles.memberInfo}>
+                        <View style={styles.memberNameRow}>
+                            <Text style={styles.memberName}>{item.fullName}</Text>
+                            {isCurrentUser && <Text style={styles.youTag}>(You)</Text>}
+                        </View>
+                        <Text style={styles.memberUsername}>@{item.username}</Text>
+                        {isCreator && (
+                            <View style={styles.creatorBadge}>
+                                <Ionicons name="star-outline" size={12} color="#FF9800" />
+                                <Text style={styles.creatorText}>Creator</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+
+                {isCurrentUserAdmin && !isCurrentUser && !isCreator && (
+                    <View style={styles.memberActions}>
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={() => handleToggleAdmin(item)}
+                            disabled={togglingAdmin === item._id}
+                        >
+                            {togglingAdmin === item._id ? (
+                                <ActivityIndicator size="small" color="#009BFF" />
+                            ) : (
+                                <Ionicons
+                                    name={isAdmin ? "shield-checkmark" : "shield-outline"}
+                                    size={20}
+                                    color={isAdmin ? "#FF9800" : "#009BFF"}
+                                />
+                            )}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={styles.actionButton}
+                            onPress={() => handleRemoveMember(item)}
+                            disabled={removingMember === item._id}
+                        >
+                            {removingMember === item._id ? (
+                                <ActivityIndicator size="small" color="#FF3B30" />
+                            ) : (
+                                <Ionicons name="remove-circle-outline" size={20} color="#FF3B30" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                )}
+            </View>
+        );
+    };
+
+    const renderFriend = ({ item }: { item: Friend }) => (
         <TouchableOpacity
             style={styles.friendItem}
-            onPress={() => handleAddMember(item)}
+            onPress={() => handleAddMember(item._id, item.fullName)}
+            disabled={addingMember === item._id}
             activeOpacity={0.7}
         >
             <View style={styles.friendAvatarContainer}>
@@ -183,163 +388,170 @@ export default function CreateGroupScreen() {
                 <Text style={styles.friendName}>{item.fullName}</Text>
                 <Text style={styles.friendUsername}>@{item.username}</Text>
             </View>
-            <View style={styles.addButton}>
-                <Ionicons name="add-circle" size={32} color="#009BFF" />
-            </View>
+            {addingMember === item._id ? (
+                <ActivityIndicator size="small" color="#009BFF" />
+            ) : (
+                <Ionicons name="add-circle" size={28} color="#009BFF" />
+            )}
         </TouchableOpacity>
     );
 
+    if (loading) {
+        return (
+            <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#009BFF" />
+                <Text style={styles.loadingText}>Loading group info...</Text>
+            </View>
+        );
+    }
+
+    if (!groupData) {
+        return (
+            <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
+                <Text style={styles.errorText}>Group not found</Text>
+                <TouchableOpacity
+                    style={styles.backButton}
+                    onPress={() => router.replace("/(chats)/Groups")}
+                >
+                    <Text style={styles.backButtonText}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.container}
-        >
+        <View style={styles.container}>
+            {/* Header */}
             <LinearGradient
                 colors={['#009BFF', '#0066CC']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
             >
-                <View style={styles.headerContent}>
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <Ionicons name="arrow-back" size={24} color="#fff" />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Create Group</Text>
-                    <View style={{ width: 24 }} />
-                </View>
+                <TouchableOpacity onPress={() => router.replace("/(chats)/Groups")} style={styles.headerBackButton}>
+                    <Ionicons name="arrow-back" size={24} color="#fff" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Group Info</Text>
+                <View style={{ width: 24 }} />
             </LinearGradient>
 
             <ScrollView
-                style={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={styles.scrollContentContainer}
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={['#009BFF']}
+                        tintColor="#009BFF"
+                    />
+                }
             >
-                {/* Group Icon Placeholder */}
-                <View style={styles.groupIconSection}>
-                    <View style={styles.groupIconPlaceholder}>
-                        <Ionicons name="people" size={48} color="#009BFF" />
-                    </View>
-                    <Text style={styles.groupIconHint}>Group Icon</Text>
-                </View>
-
-                {/* Group Name Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>
-                        Group Name <Text style={styles.required}>*</Text>
+                {/* Group Image & Name */}
+                <View style={styles.groupHeader}>
+                    <Image
+                        source={{
+                            uri: groupData.groupImage ||
+                                `https://ui-avatars.com/api/?name=${encodeURIComponent(groupData.name)}&background=009BFF&color=fff&size=256`
+                        }}
+                        style={styles.groupImage}
+                    />
+                    <Text style={styles.groupName}>{groupData.name}</Text>
+                    <Text style={styles.groupMembersCount}>
+                        {groupData.members.length} {groupData.members.length === 1 ? 'member' : 'members'}
                     </Text>
-                    <View style={styles.inputWrapper}>
-                        <Ionicons name="chatbubbles" size={20} color="#009BFF" style={styles.inputIcon} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Enter group name"
-                            placeholderTextColor="#999"
-                            value={groupName}
-                            onChangeText={setGroupName}
-                            maxLength={50}
-                        />
-                        <Text style={styles.charCount}>{groupName.length}/50</Text>
-                    </View>
                 </View>
 
-                {/* Group Description Section */}
-                <View style={styles.section}>
-                    <Text style={styles.sectionLabel}>Description (Optional)</Text>
-                    <View style={styles.inputWrapper}>
-                        <Ionicons name="information-circle" size={20} color="#009BFF" style={styles.inputIcon} />
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            placeholder="What's this group about?"
-                            placeholderTextColor="#999"
-                            value={groupDescription}
-                            onChangeText={setGroupDescription}
-                            maxLength={200}
-                            multiline
-                            numberOfLines={3}
-                        />
+                {/* Description */}
+                {groupData.description && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="information-circle" size={20} color="#009BFF" />
+                            <Text style={styles.sectionTitle}>Description</Text>
+                        </View>
+                        <Text style={styles.descriptionText}>{groupData.description}</Text>
                     </View>
-                    <Text style={styles.charCountRight}>{groupDescription.length}/200</Text>
+                )}
+
+                {/* Created By */}
+                <View style={styles.section}>
+                    <View style={styles.sectionHeader}>
+                        <Ionicons name="person" size={20} color="#009BFF" />
+                        <Text style={styles.sectionTitle}>Created By</Text>
+                    </View>
+                    <View style={styles.creatorInfo}>
+                        <Image
+                            source={{ uri: getAvatarUrl(groupData.createdBy.profileImage, groupData.createdBy.fullName) }}
+                            style={styles.creatorAvatar}
+                        />
+                        <View style={styles.creatorDetails}>
+                            <Text style={styles.creatorName}>{groupData.createdBy.fullName}</Text>
+                            <Text style={styles.creatorUsername}>@{groupData.createdBy.username}</Text>
+                        </View>
+                    </View>
                 </View>
 
                 {/* Members Section */}
                 <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionLabel}>
-                            Members <Text style={styles.required}>*</Text>
-                        </Text>
-                        <View style={styles.memberCountBadge}>
-                            <Text style={styles.memberCountText}>{selectedMembers.length}</Text>
+                    <View style={styles.sectionHeaderRow}>
+                        <View style={styles.sectionHeader}>
+                            <Ionicons name="people" size={20} color="#009BFF" />
+                            <Text style={styles.sectionTitle}>Members ({groupData.members.length})</Text>
                         </View>
+                        {isUserAdmin() && (
+                            <TouchableOpacity
+                                style={styles.addMemberButton}
+                                onPress={() => {
+                                    setShowAddMembersModal(true);
+                                    fetchAvailableFriends();
+                                }}
+                            >
+                                <Ionicons name="person-add" size={18} color="#009BFF" />
+                                <Text style={styles.addMemberText}>Add</Text>
+                            </TouchableOpacity>
+                        )}
+                        {!isCreator() && (
+                            <TouchableOpacity
+                                style={styles.exitGroupButton}
+                                onPress={() => {
+                                    // setShowAddMembersModal(true);
+                                    handleLeaveGroup();
+                                }}
+                            >
+                                <Ionicons name="exit" size={18} color="red" />
+                                <Text style={styles.leaveGroupStyle}>Leave</Text>
+                            </TouchableOpacity>
+                        )}
+
                     </View>
 
-                    {selectedMembers.length > 0 ? (
-                        <FlatList
-                            data={selectedMembers}
-                            renderItem={renderSelectedMember}
-                            keyExtractor={(item) => item._id}
-                            scrollEnabled={false}
-                            style={styles.selectedMembersList}
-                        />
-                    ) : (
-                        <View style={styles.noMembersContainer}>
-                            <Ionicons name="people-outline" size={48} color="#CCC" />
-                            <Text style={styles.noMembersText}>No members added yet</Text>
-                            <Text style={styles.noMembersSubtext}>Add at least 2 members</Text>
-                        </View>
-                    )}
-
-                    <TouchableOpacity
-                        style={styles.addMembersButton}
-                        onPress={() => setShowMemberModal(true)}
-                    >
-                        <LinearGradient
-                            colors={['#009BFF', '#0066CC']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.addMembersButtonGradient}
-                        >
-                            <Ionicons name="person-add" size={20} color="#fff" />
-                            <Text style={styles.addMembersButtonText}>Add Members</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
+                    <FlatList
+                        data={groupData.members}
+                        renderItem={renderMember}
+                        keyExtractor={(item) => item._id}
+                        scrollEnabled={false}
+                        ItemSeparatorComponent={() => <View style={styles.separator} />}
+                    />
                 </View>
+
+                {/* Admin Info */}
+                {isUserAdmin() && (
+                    <View style={styles.adminInfoBox}>
+                        <Ionicons name="information-circle" size={20} color="#009BFF" />
+                        <Text style={styles.adminInfoText}>
+                            As an admin, you can add/remove members and manage other admins. The creator cannot be removed or demoted.
+                        </Text>
+                    </View>
+                )}
             </ScrollView>
 
-            {/* Fixed Footer */}
-            <View style={styles.footer}>
-                <TouchableOpacity
-                    style={[
-                        styles.createButton,
-                        (!groupName.trim() || selectedMembers.length < 1) && styles.createButtonDisabled,
-                    ]}
-                    onPress={handleCreateGroup}
-                    disabled={!groupName.trim() || selectedMembers.length < 1 || loadingCreate}
-                >
-                    <LinearGradient
-                        colors={(!groupName.trim() || selectedMembers.length < 1) 
-                            ? ['#CCC', '#999'] 
-                            : ['#4CAF50', '#45A049']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.createButtonGradient}
-                    >
-                        {loadingCreate ? (
-                            <ActivityIndicator color="#fff" size="small" />
-                        ) : (
-                            <>
-                                <Ionicons name="checkmark-circle" size={22} color="#fff" />
-                                <Text style={styles.createButtonText}>Create Group</Text>
-                            </>
-                        )}
-                    </LinearGradient>
-                </TouchableOpacity>
-            </View>
-
-            {/* Member Selection Modal */}
+            {/* Add Members Modal */}
             <Modal
-                visible={showMemberModal}
+                visible={showAddMembersModal}
                 transparent={false}
                 animationType="slide"
-                onRequestClose={() => setShowMemberModal(false)}
+                onRequestClose={() => setShowAddMembersModal(false)}
             >
                 <View style={styles.modalContainer}>
                     <LinearGradient
@@ -348,20 +560,11 @@ export default function CreateGroupScreen() {
                         end={{ x: 1, y: 1 }}
                         style={styles.modalHeader}
                     >
-                        <View style={styles.modalHeaderContent}>
-                            <TouchableOpacity onPress={() => setShowMemberModal(false)}>
-                                <Ionicons name="arrow-back" size={24} color="#fff" />
-                            </TouchableOpacity>
-                            <View style={styles.modalTitleContainer}>
-                                <Text style={styles.modalTitle}>Select Members</Text>
-                                <Text style={styles.modalSubtitle}>
-                                    {filteredFriends.length} friends available
-                                </Text>
-                            </View>
-                            <TouchableOpacity onPress={() => setShowMemberModal(false)}>
-                                <Ionicons name="checkmark" size={28} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
+                        <TouchableOpacity onPress={() => setShowAddMembersModal(false)}>
+                            <Ionicons name="arrow-back" size={24} color="#fff" />
+                        </TouchableOpacity>
+                        <Text style={styles.modalTitle}>Add Members</Text>
+                        <View style={{ width: 24 }} />
                     </LinearGradient>
 
                     {/* Search Bar */}
@@ -370,7 +573,7 @@ export default function CreateGroupScreen() {
                         <TextInput
                             style={styles.searchInput}
                             placeholder="Search friends..."
-                            placeholderTextColor="#999"
+                              placeholderTextColor={currentTheme.placeholderText}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                         />
@@ -389,14 +592,12 @@ export default function CreateGroupScreen() {
                         </View>
                     ) : filteredFriends.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="people-outline" size={64} color="#CCC" />
+                            <Ionicons name="people-outline" size={64} color="#ccc" />
                             <Text style={styles.emptyText}>
                                 {searchQuery ? 'No friends found' : 'No friends available'}
                             </Text>
                             <Text style={styles.emptySubtext}>
-                                {searchQuery 
-                                    ? 'Try a different search term' 
-                                    : 'All friends have been added'}
+                                {searchQuery ? 'Try a different search' : 'All friends are already members'}
                             </Text>
                         </View>
                     ) : (
@@ -417,26 +618,59 @@ export default function CreateGroupScreen() {
                 visible={messageVisible}
                 onClose={() => setMessageVisible(false)}
             />
-        </KeyboardAvoidingView>
+        </View>
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.background,
     },
-    header: {
-        paddingTop: 50,
-        paddingBottom: 16,
-        paddingHorizontal: 16,
-    },
-    headerContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: theme.background,
+    },
+    loadingText: {
+        marginTop: 12,
+        fontSize: 14,
+        color: '#666',
+    },
+    errorContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 40,
+    },
+    errorText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#666',
+        marginTop: 16,
     },
     backButton: {
+        marginTop: 20,
+        paddingHorizontal: 24,
+        paddingVertical: 12,
+        backgroundColor: '#009BFF',
+        borderRadius: 24,
+    },
+    backButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingTop: 50,
+        paddingBottom: 16,
+    },
+    headerBackButton: {
         padding: 4,
     },
     headerTitle: {
@@ -444,250 +678,237 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: '#fff',
     },
-    scrollContent: {
+    scrollView: {
         flex: 1,
     },
-    scrollContentContainer: {
-        paddingHorizontal: 16,
-        paddingTop: 20,
-        paddingBottom: 100,
+    scrollContent: {
+        paddingBottom: 24,
     },
-    groupIconSection: {
+    groupHeader: {
         alignItems: 'center',
-        marginBottom: 24,
+        paddingVertical: 32,
+        backgroundColor: '#F8F8F8',
     },
-    groupIconPlaceholder: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: '#F0F8FF',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 2,
-        borderColor: '#009BFF',
-        borderStyle: 'dashed',
+    groupImage: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        marginBottom: 16,
+        borderWidth: 4,
+        borderColor: '#fff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 3,
     },
-    groupIconHint: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 8,
+    groupName: {
+        fontSize: 24,
+        fontWeight: '700',
+        color: '#000',
+        marginBottom: 4,
+    },
+    groupMembersCount: {
+        fontSize: 14,
+        color: '#666',
     },
     section: {
-        marginBottom: 24,
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#F0F0F0',
+    },
+    sectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 12,
     },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 8,
         marginBottom: 12,
     },
-    sectionLabel: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 8,
-    },
-    required: {
-        color: '#FF3B30',
-    },
-    memberCountBadge: {
-        backgroundColor: '#009BFF',
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
-        marginLeft: 8,
-    },
-    memberCountText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: '#fff',
-    },
-    inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1.5,
-        borderColor: '#E0E0E0',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        backgroundColor: '#F9F9F9',
-    },
-    inputIcon: {
-        marginRight: 10,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 12,
+    sectionTitle: {
         fontSize: 16,
+        fontWeight: '700',
         color: '#000',
     },
-    textArea: {
-        paddingTop: 12,
-        paddingBottom: 12,
-        minHeight: 80,
-        textAlignVertical: 'top',
-    },
-    charCount: {
-        fontSize: 12,
-        color: '#999',
-        marginLeft: 8,
-    },
-    charCountRight: {
-        fontSize: 12,
-        color: '#999',
-        textAlign: 'right',
-        marginTop: 4,
-    },
-    noMembersContainer: {
-        alignItems: 'center',
-        paddingVertical: 40,
-        backgroundColor: '#F8F8F8',
-        borderRadius: 12,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#E0E0E0',
-        borderStyle: 'dashed',
-    },
-    noMembersText: {
-        fontSize: 16,
-        fontWeight: '600',
+    descriptionText: {
+        fontSize: 15,
         color: '#666',
-        marginTop: 12,
+        lineHeight: 22,
     },
-    noMembersSubtext: {
-        fontSize: 13,
-        color: '#999',
-        marginTop: 4,
-    },
-    selectedMembersList: {
-        marginBottom: 12,
-    },
-    selectedMemberItem: {
+    creatorInfo: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#F0F8FF',
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        marginBottom: 8,
-        borderWidth: 1.5,
-        borderColor: '#009BFF',
     },
-    selectedMemberAvatar: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+    creatorAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         marginRight: 12,
     },
-    selectedMemberInfo: {
+    creatorDetails: {
         flex: 1,
     },
-    selectedMemberName: {
-        fontSize: 15,
+    creatorName: {
+        fontSize: 16,
         fontWeight: '600',
         color: '#000',
         marginBottom: 2,
     },
-    selectedMemberUsername: {
-        fontSize: 13,
+    creatorUsername: {
+        fontSize: 14,
         color: '#009BFF',
     },
-    removeMemberButton: {
-        padding: 4,
-    },
-    addMembersButton: {
-        borderRadius: 12,
-        overflow: 'hidden',
-    },
-    addMembersButtonGradient: {
+    addMemberButton: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        gap: 8,
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: '#F0F8FF',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#009BFF',
     },
-    addMembersButtonText: {
+    addMemberText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#009BFF',
+    },
+    memberItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+    },
+    memberLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+    },
+    memberAvatarContainer: {
+        position: 'relative',
+        marginRight: 12,
+    },
+    memberAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+    },
+    adminBadge: {
+        position: 'absolute',
+        bottom: -2,
+        right: -2,
+        backgroundColor: '#FF9800',
+        borderRadius: 10,
+        width: 20,
+        height: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: '#fff',
+    },
+    memberInfo: {
+        flex: 1,
+    },
+    memberNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 2,
+    },
+    memberName: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#fff',
+        color: '#000',
+        marginRight: 6,
     },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        paddingBottom: 24,
-        backgroundColor: '#fff',
-        borderTopWidth: 1,
-        borderTopColor: '#E0E0E0',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 5,
+    youTag: {
+        fontSize: 13,
+        color: '#009BFF',
+        fontWeight: '400',
     },
-    createButton: {
-        borderRadius: 14,
-        overflow: 'hidden',
+    memberUsername: {
+        fontSize: 14,
+        color: '#009BFF',
+        marginBottom: 2,
     },
-    createButtonDisabled: {
-        opacity: 0.6,
-    },
-    createButtonGradient: {
+    creatorBadge: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 4,
+        marginTop: 2,
+    },
+    creatorText: {
+        fontSize: 12,
+        color: '#FF9800',
+        fontWeight: '600',
+    },
+    memberActions: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    actionButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: '#F5F5F5',
+        alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 16,
+    },
+    adminInfoBox: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginHorizontal: 16,
+        marginTop: 16,
+        padding: 12,
+        backgroundColor: '#F0F8FF',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#009BFF',
         gap: 8,
     },
-    createButtonText: {
-        fontSize: 17,
-        fontWeight: '700',
-        color: '#fff',
+    adminInfoText: {
+        flex: 1,
+        fontSize: 13,
+        color: '#009BFF',
+        lineHeight: 18,
     },
+    separator: {
+        height: 1,
+        backgroundColor: '#F0F0F0',
+    },
+    // Modal Styles
     modalContainer: {
         flex: 1,
         backgroundColor: '#fff',
     },
     modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
         paddingTop: 50,
         paddingBottom: 16,
-        paddingHorizontal: 16,
-    },
-    modalHeaderContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    modalTitleContainer: {
-        flex: 1,
-        marginHorizontal: 16,
     },
     modalTitle: {
-        fontSize: 18,
+        fontSize: 20,
         fontWeight: '700',
         color: '#fff',
-        textAlign: 'center',
-    },
-    modalSubtitle: {
-        fontSize: 13,
-        color: '#fff',
-        textAlign: 'center',
-        marginTop: 2,
-        opacity: 0.9,
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         marginHorizontal: 16,
-        marginTop: 16,
-        marginBottom: 12,
+        marginVertical: 16,
         paddingHorizontal: 12,
         borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderColor:  theme.shadowColor,
         borderRadius: 12,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: theme.searchBackground,
     },
     searchIcon: {
         marginRight: 8,
@@ -696,17 +917,7 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 15,
-        color: '#000',
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: '#666',
+        color:  theme.searchInputText,
     },
     emptyContainer: {
         flex: 1,
@@ -728,7 +939,6 @@ const styles = StyleSheet.create({
     },
     friendsList: {
         paddingHorizontal: 16,
-        paddingVertical: 8,
     },
     friendItem: {
         flexDirection: 'row',
@@ -758,22 +968,30 @@ const styles = StyleSheet.create({
     friendInfo: {
         flex: 1,
     },
+    friendUsername: {
+        fontSize: 13,
+        color: '#009BFF',
+    },
     friendName: {
         fontSize: 16,
         fontWeight: '600',
         color: '#000',
         marginBottom: 2,
     },
-    friendUsername: {
-        fontSize: 13,
-        color: '#009BFF',
+    leaveGroupStyle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#FF3B30'
     },
-    addButton: {
-        padding: 4,
+    exitGroupButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: '#fcf6f6ff',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#FF3B30',
     },
-    separator: {
-        height: 1,
-        backgroundColor: '#E0E0E0',
-        marginLeft: 76,
-    },
-});
+})

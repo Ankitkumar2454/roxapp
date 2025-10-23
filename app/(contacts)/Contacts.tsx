@@ -2,11 +2,13 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { Contact, createContactResponse } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -42,6 +44,9 @@ export default function SelectContactScreen() {
     const [messageType, setMessageType] = useState<'success' | 'error' | 'info'>('info');
     const [messageText, setMessageText] = useState('');
     const [pendingRequests, setPendingRequests] = useState<any>(0)
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
 
     const handleInitialSetup = async () => {
         const userdata = await Storage.getItem("user");
@@ -75,8 +80,8 @@ export default function SelectContactScreen() {
 
             if (response.data.success && response.data.data) {
                 // Extract receiver IDs from sent requests
-                const sentIds :any = new Set(
-                    response.data.data.map((request: any) => 
+                const sentIds: any = new Set(
+                    response.data.data.map((request: any) =>
                         request.receiver._id || request.receiver.id
                     )
                 );
@@ -94,8 +99,8 @@ export default function SelectContactScreen() {
 
             if (response.data.success && response.data.data) {
                 // Extract friend IDs from friends list
-                const friendIdsSet : any= new Set(
-                    response.data.data.map((friend: any) => 
+                const friendIdsSet: any = new Set(
+                    response.data.data.map((friend: any) =>
                         friend._id || friend.id
                     )
                 );
@@ -310,7 +315,7 @@ export default function SelectContactScreen() {
     const renderContactItem = ({ item }: { item: Contact }) => {
         const hasRequestSent = sentRequestIds.has(item.id);
         const alreadyFriends = friendIds.has(item.id);
-        if(alreadyFriends) return <></>;
+        if (alreadyFriends) return <></>;
 
         return (
             <TouchableOpacity
@@ -377,11 +382,11 @@ export default function SelectContactScreen() {
         <>
             {/* Search Bar */}
             <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                <Ionicons name="search" size={20} color={currentTheme.iconColor} style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Search contacts..."
-                    placeholderTextColor="#999"
+                    placeholderTextColor={currentTheme.placeholderText}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
@@ -445,10 +450,13 @@ export default function SelectContactScreen() {
 
     return (
         <View style={styles.container}>
-            <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
+            <StatusBar
+                barStyle={theme === "dark" ? "light-content" : "dark-content"}
+                backgroundColor={currentTheme.background}
+            />
 
             <LinearGradient
-                colors={["#009BFF", "#0066CC"]}
+                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
             >
@@ -525,7 +533,7 @@ export default function SelectContactScreen() {
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
                             <LinearGradient
-                                colors={["#009BFF", "#0066CC"]}
+                                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.modalHeader}
@@ -546,7 +554,7 @@ export default function SelectContactScreen() {
                                         <TextInput
                                             style={styles.input}
                                             placeholder="Enter username"
-                                            placeholderTextColor="#999"
+                                            placeholderTextColor={currentTheme.placeholderText}
                                             value={formData.username}
                                             onChangeText={(text) => setFormData({ ...formData, username: text })}
                                         />
@@ -560,7 +568,7 @@ export default function SelectContactScreen() {
                                         <TextInput
                                             style={styles.input}
                                             placeholder="Enter full name"
-                                            placeholderTextColor="#999"
+                                            placeholderTextColor={currentTheme.placeholderText}
                                             value={formData.fullName}
                                             onChangeText={(text) => setFormData({ ...formData, fullName: text })}
                                         />
@@ -583,7 +591,7 @@ export default function SelectContactScreen() {
                                     disabled={loading}
                                 >
                                     <LinearGradient
-                                        colors={loading ? ["#999", "#666"] : ["#009BFF", "#0066CC"]}
+                                        colors={loading ? ["#999", "#666"] : [currentTheme.buttonGradientStart, currentTheme.buttonGradientEnd]}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 1 }}
                                         style={styles.submitButtonGradient}
@@ -611,10 +619,10 @@ export default function SelectContactScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#fff',
+        backgroundColor: theme.background,
     },
     header: {
         paddingHorizontal: 16,
@@ -657,6 +665,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+         backgroundColor: theme.background,
     },
     loadingText: {
         marginTop: 12,
@@ -674,8 +683,11 @@ const styles = StyleSheet.create({
         marginVertical: 12,
         paddingHorizontal: 12,
         paddingVertical: 8,
-        backgroundColor: '#F5F5F5',
+        backgroundColor: theme.searchBackground,
         borderRadius: 12,
+        shadowColor: theme.shadowColor,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 3,
     },
     searchIcon: {
         marginRight: 8,
@@ -683,10 +695,12 @@ const styles = StyleSheet.create({
     searchInput: {
         flex: 1,
         fontSize: 16,
-        color: '#000',
+        color: theme.searchInputText,
     },
     actionSection: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.cardBackground,
+        marginVertical: 8,
+
     },
     actionItem: {
         flexDirection: 'row',
@@ -705,18 +719,18 @@ const styles = StyleSheet.create({
     },
     actionText: {
         fontSize: 16,
-        color: '#000',
+        color: theme.primaryText,
         fontWeight: '500',
         marginBottom: 2,
     },
     actionSubtext: {
         fontSize: 13,
-        color: '#666',
+        color: theme.secondaryText,
     },
     sectionHeader: {
         paddingHorizontal: 16,
         paddingVertical: 10,
-        backgroundColor: '#F8F8F8',
+        backgroundColor: theme.searchBackground,
     },
     sectionHeaderText: {
         fontSize: 13,
@@ -728,7 +742,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
         paddingHorizontal: 16,
-        backgroundColor: '#fff',
+        backgroundColor: theme.cardBackground,
     },
     avatar: {
         width: 50,
@@ -747,7 +761,7 @@ const styles = StyleSheet.create({
     avatarText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#fff',
+        color: theme.primaryText,
     },
     contactInfo: {
         flex: 1,
@@ -760,7 +774,7 @@ const styles = StyleSheet.create({
     },
     contactName: {
         fontSize: 16,
-        color: '#000',
+        color: theme.primaryText,
         fontWeight: '600',
     },
     youTag: {
@@ -782,7 +796,7 @@ const styles = StyleSheet.create({
     },
     contactStatus: {
         fontSize: 14,
-        color: '#666',
+        color: theme.secondaryText,
     },
     contactUsername: {
         fontSize: 13,
@@ -823,12 +837,12 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#666',
+        color: theme.emptyStateText,
         marginTop: 16,
     },
     emptySubtext: {
         fontSize: 14,
-        color: '#999',
+        color: theme.emptyStateSubtext,
         marginTop: 8,
     },
     // Modal Styles
@@ -859,13 +873,14 @@ const styles = StyleSheet.create({
     },
     modalTitle: {
         fontSize: 20,
-        fontWeight: '700',
+        fontWeight: '600',
         color: '#fff',
     },
     formContainer: {
         paddingHorizontal: 16,
         paddingVertical: 24,
         gap: 16,
+        backgroundColor: theme.containerBackground,
     },
     fieldGroup: {
         marginBottom: 8,
@@ -873,17 +888,17 @@ const styles = StyleSheet.create({
     fieldLabel: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#333',
+        color: theme.secondaryText,
         marginBottom: 8,
     },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderColor: theme.inputBorder,
         borderRadius: 12,
         paddingHorizontal: 12,
-        backgroundColor: '#F9F9F9',
+        backgroundColor: theme.cardBackground,
     },
     fieldIcon: {
         marginRight: 10,
@@ -892,32 +907,37 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: 12,
         fontSize: 16,
-        color: '#000',
+        color: theme.inputText,
     },
     buttonContainer: {
         flexDirection: 'row',
         gap: 12,
         paddingHorizontal: 16,
-        paddingBottom: 24,
+        paddingBottom: 20,
+        backgroundColor: theme.containerBackground,
+        borderTopColor: theme.inputBorder,
+        borderTopWidth: 2,
     },
     cancelButton: {
         flex: 1,
-        borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderWidth: 1,
+        borderColor: theme.inputBorder,
         borderRadius: 12,
         paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
+        marginTop: 3,
     },
     cancelButtonText: {
         fontSize: 16,
         fontWeight: '600',
-        color: '#666',
+        color: theme.secondaryText,
     },
     submitButton: {
         flex: 1,
         borderRadius: 12,
         overflow: 'hidden',
+        marginTop: 3,
     },
     submitButtonDisabled: {
         opacity: 0.6,

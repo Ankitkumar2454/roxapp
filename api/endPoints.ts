@@ -36,10 +36,29 @@ const ENDPOINTS = {
     previous_message: "api/messages/messages",
     markAsRead: "/api/messages/",
   },
-  socket: "wss://polobet247.in",
+  calls: {
+    create: "/api/calls",
+    join: (callId: string) => `/api/calls/${callId}/join`,
+    leave: (callId: string) => `/api/calls/${callId}/leave`,
+    decline: (callId: string) => `/api/calls/${callId}/decline`,
+    end: (callId: string) => `/api/calls/${callId}/end`,
+    toggleMedia: (callId: string) => `/api/calls/${callId}/media`,
+    activeForUser: "/api/calls/active",
+    historyForUser: "/api/calls/history",
+    details: (callId: string) => `/api/calls/${callId}`,
+    logs: (callId: string) => `/api/calls/${callId}/logs`,
+    updateQuality: (callId: string) => `/api/calls/${callId}/quality`,
+    toggleRecording: (callId: string) => `/api/calls/${callId}/recording`,
+    stats: "/api/calls/stats",
+  },
+  socket: "ws://192.168.0.80:8000",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
-    getChatHistory:"/api/whatsapp-messages/history"
+    getChatHistory: "/api/whatsapp-messages/history"
+  },
+  upload: {
+    documents: "/api/upload/documents",
+    delete: "/api/upload/delete",
   },
 };
 

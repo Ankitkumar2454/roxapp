@@ -2,11 +2,13 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { Friend } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Image, RefreshControl, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 
@@ -20,7 +22,9 @@ export default function ChatScreen() {
   const [messageText, setMessageText] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredFriends, setFilteredFriends] = useState<Friend[]>([]);
-
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+  const styles = createStyles(currentTheme);
   const getRandomColor = () => {
     const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
     return colors[Math.floor(Math.random() * colors.length)];
@@ -40,7 +44,7 @@ export default function ChatScreen() {
 
       if (response.data.success && response.data.data) {
         const currentUserData = await Storage.getItem("user");
-        console.log(response.data.data , "currentUserData")
+        console.log(response.data.data, "currentUserData")
 
         const transformedFriends: Friend[] = response.data.data
           .filter((user: any) => user._id !== currentUserData?._id) // Exclude yourself
@@ -83,8 +87,8 @@ export default function ChatScreen() {
       setFilteredFriends(friends);
       return;
     }
-    
-    const filtered = friends.filter(friend => 
+
+    const filtered = friends.filter(friend =>
       friend.name.toLowerCase().includes(searchText.toLowerCase()) ||
       friend.username.toLowerCase().includes(searchText.toLowerCase())
     );
@@ -124,7 +128,7 @@ export default function ChatScreen() {
         activeOpacity={0.7}
       >
         <View style={styles.avatarContainer}>
-          <Image 
+          <Image
             source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${item.bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
             style={styles.avatarImage}
             defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${item.bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
@@ -190,17 +194,21 @@ export default function ChatScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#667eea" barStyle="light-content" />
+      {/* <StatusBar backgroundColor="#667eea" barStyle="light-content" /> */}
+      <StatusBar
+        barStyle={theme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor={currentTheme.background}
+      />
       <View style={styles.listHeader}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} color="#667eea" />
-           <TextInput
-             style={styles.searchInput}
-             placeholder="Search conversations..."
-             placeholderTextColor="#999"
-             value={searchTerm}
-             onChangeText={handleSearchChange}
-           />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search conversations..."
+            placeholderTextColor="#999"
+            value={searchTerm}
+            onChangeText={handleSearchChange}
+          />
           {searchTerm.length > 0 && (
             <TouchableOpacity onPress={() => handleSearchChange('')}>
               <Ionicons name="close-circle" size={20} color="#999" />
@@ -235,10 +243,10 @@ export default function ChatScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
 
   // Header Styles
@@ -248,7 +256,7 @@ const styles = StyleSheet.create({
   },
   listHeader: {
     paddingHorizontal: 20,
-    paddingVertical:10
+    paddingVertical: 10
   },
   headerContent: {
     flexDirection: 'row',
@@ -256,12 +264,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 0,
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#fff',
-    letterSpacing: 0.5,
-  },
+
   addButton: {
     width: 40,
     height: 40,
@@ -275,11 +278,11 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.searchBackground,
     borderRadius: 25,
     paddingHorizontal: 16,
     height: 50,
-    shadowColor: '#000',
+    shadowColor: theme.shadowColor,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -289,18 +292,21 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: '#333',
+    color: theme.searchInputText,
   },
 
   // Chat Item Styles
   chatItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    // backgroundColor: theme.chatItemBackground,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
+    //borderWidth: 0.5,
+    //marginVertical: 1,
+    borderBottomColor: theme.chatItemBorder,
+    //elevation: 1
   },
 
   // Avatar Styles
@@ -327,12 +333,12 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#000',
+    color: theme.primaryText,
     flex: 1,
   },
   time: {
     fontSize: 12,
-    color: '#999',
+    color: theme.tertiaryText,
     fontWeight: '400',
   },
   messageRow: {
@@ -342,12 +348,12 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: 14,
-    color: '#999',
+    color: theme.tertiaryText,
     flex: 1,
     fontWeight: '400',
   },
   unreadBadge: {
-    backgroundColor: '#25D366',
+    backgroundColor: theme.unreadBadgeBackground,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -367,12 +373,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.background,
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#7f8c8d',
+    color: theme.emptyStateSubtext,
     fontWeight: '500',
   },
 
@@ -398,13 +404,13 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#2c3e50',
+    color: theme.emptyStateText,
     marginBottom: 8,
     textAlign: 'center',
   },
   emptySubtext: {
     fontSize: 16,
-    color: '#7f8c8d',
+    color: theme.emptyStateSubtext,
     textAlign: 'center',
     lineHeight: 24,
     marginBottom: 32,

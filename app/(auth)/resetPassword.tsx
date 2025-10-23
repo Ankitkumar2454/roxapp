@@ -1,10 +1,12 @@
 import api from "@/api/axiosInstance";
 import ENDPOINTS from "@/api/endPoints";
 import GlobalMessage from "@/CustomComponents/message";
+import { darkTheme, lightTheme } from "@/src/constants/color";
+import { ThemeContext } from "@/src/services/ThemeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Dimensions, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { greetings } from "./login";
 
@@ -12,6 +14,9 @@ const screenWidth = Dimensions.get("window").width;
 const screenHeight = Dimensions.get("window").height;
 
 export default function MPINResetScreen() {
+    const { theme, toggleTheme } = useContext(ThemeContext);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const [newMPIN, setNewMPIN] = useState("");
     const [confirmMPIN, setConfirmMPIN] = useState("");
     const [loading, setLoading] = useState(false);
@@ -243,7 +248,7 @@ export default function MPINResetScreen() {
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     card: {
         backgroundColor: "#fff",
         borderRadius: 20,
