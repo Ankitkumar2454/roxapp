@@ -11,17 +11,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  Image,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    Image,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -254,7 +254,13 @@ export default function ProfileScreen() {
         </Animated.View>
       {/* </LinearGradient> */}
 
-      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollContainer} 
+        showsVerticalScrollIndicator={true}
+        contentContainerStyle={styles.scrollContentContainer}
+        bounces={true}
+        alwaysBounceVertical={false}
+      >
         <Animated.View 
           style={[
             styles.content,
@@ -521,9 +527,13 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     flex: 1,
     marginTop: 0,
   } as any,
+  scrollContentContainer: {
+    flexGrow: 1,
+    paddingBottom: Spacing['4xl'],
+  } as any,
   content: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing['3xl'],
+    paddingBottom: Spacing['4xl'] + 100, // Extra padding for better button accessibility
   } as any,
   
   // Section Titles
@@ -562,115 +572,112 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     backgroundColor: colors.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
-  },
+    marginRight: Spacing.md,
+  } as any,
   infoContent: {
     flex: 1,
-  },
+  } as any,
   infoLabel: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    marginBottom: 4,
-    fontWeight: '500',
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: Spacing.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+  } as any,
   infoValue: {
-    fontSize: 16,
-    color: '#2c3e50',
-    fontWeight: '600',
-  },
+    fontSize: Typography.fontSize.base,
+    color: colors.textPrimary,
+    fontWeight: Typography.fontWeight.semibold as any,
+  } as any,
   copyButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0, 155, 255, 0.1)',
-  },
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: colors.primary + '20',
+  } as any,
   
   // Activity Section
   activitySection: {
-    marginBottom: 20,
-  },
+    marginBottom: Spacing.xl,
+  } as any,
   activityCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xl,
+    ...shadows.md,
+  } as any,
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-  },
+    paddingVertical: Spacing.md,
+  } as any,
   activityIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(0, 155, 255, 0.1)',
+    backgroundColor: colors.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 15,
-  },
+    marginRight: Spacing.md,
+  } as any,
   activityContent: {
     flex: 1,
-  },
+  } as any,
   activityLabel: {
-    fontSize: 14,
+    fontSize: Typography.fontSize.sm,
     color: colors.textSecondary,
-    marginBottom: 4,
-    fontWeight: '500',
-  },
+    marginBottom: Spacing.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+  } as any,
   activityValue: {
-    fontSize: 16,
+    fontSize: Typography.fontSize.base,
     color: colors.textPrimary,
-    fontWeight: '600',
-  },
+    fontWeight: Typography.fontWeight.semibold as any,
+  } as any,
   activityDivider: {
     height: 1,
     backgroundColor: colors.borderLight,
-    marginVertical: 8,
-  },
+    marginVertical: Spacing.sm,
+  } as any,
   
   // Action Section
   actionSection: {
-    marginTop: 20,
-    marginBottom: 20,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing['2xl'],
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 4,
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     backgroundColor: colors.surface,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    ...shadows.md,
+  } as any,
   editButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
-    minHeight: 50,
-  },
+    minHeight: 56,
+  } as any,
   buttonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    gap: 10,
-    minHeight: 50,
-  },
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+    minHeight: 56,
+  } as any,
   editButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
-  },
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: colors.white,
+  } as any,
   logoutButton: {
     flex: 1,
     backgroundColor: colors.surface,
-    borderRadius: 12,
+    borderRadius: BorderRadius.lg,
     borderWidth: 2,
     borderColor: colors.error,
     shadowColor: colors.error,
@@ -678,19 +685,19 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
-    minHeight: 50,
-  },
+    minHeight: 56,
+  } as any,
   logoutButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 10,
-    minHeight: 50,
-  },
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+    minHeight: 56,
+  } as any,
   logoutButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
     color: colors.error,
-  },
+  } as any,
 });

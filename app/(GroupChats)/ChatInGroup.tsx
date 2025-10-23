@@ -43,6 +43,7 @@ export default function GroupChatScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
     const { isDark, colors, shadows } = useTheme();
     const styles = createStyles(isDark, colors, shadows);
+    const currentTheme = colors;
     const router = useRouter();
     const params = useLocalSearchParams();
     const groupId = params.groupId as string;
@@ -596,7 +597,7 @@ export default function GroupChatScreen() {
                     style={styles.backButton}
                     activeOpacity={0.7}
                 >
-                    <Ionicons name="arrow-back" size={24} color={currentTheme.primaryText} />
+                    <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -624,13 +625,13 @@ export default function GroupChatScreen() {
 
                 <View style={styles.headerIcons}>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="videocam-outline" size={22} color={ currentTheme.primaryText} />
+                        <Ionicons name="videocam-outline" size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="call-outline" size={22} color={ currentTheme.primaryText} />
+                        <Ionicons name="call-outline" size={22} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="ellipsis-vertical" size={20} color={ currentTheme.primaryText} />
+                        <Ionicons name="ellipsis-vertical" size={20} color={colors.textPrimary} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -790,12 +791,12 @@ export default function GroupChatScreen() {
                         style={styles.iconButton}
                         disabled={messagesLoading}
                     >
-                        <Ionicons name="add" size={26} color={messagesLoading ? "#ccc" : "#007AFF"} />
+                        <Ionicons name="add" size={24} color={messagesLoading ? colors.textLight : colors.primary} />
                     </TouchableOpacity>
                     <TextInput
                         style={[styles.input, messagesLoading && styles.inputDisabled]}
                         placeholder={messagesLoading ? "Loading messages..." : "Type a message..."}
-                        placeholderTextColor={currentTheme.placeholderText}
+                        placeholderTextColor={colors.textLight}
                         value={message}
                         onChangeText={handleTyping}
                         multiline
@@ -895,21 +896,21 @@ export default function GroupChatScreen() {
     );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
+        backgroundColor: colors.background,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: theme.background,
+        backgroundColor: colors.background,
     },
     loadingText: {
         marginTop: 12,
         fontSize: 14,
-        color: theme.emptyStateSubtext,
+        color: colors.textSecondary,
     },
     errorContainer: {
         flex: 1,
@@ -920,7 +921,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     errorText: {
         fontSize: 18,
         fontWeight: '600',
-        color: theme.emptyStateText,
+        color: colors.textPrimary,
         marginTop: 16,
     },
     backToChatsButton: {
@@ -941,7 +942,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     chatContainer: {
         flex: 1,
         marginTop: 8,
-        backgroundColor: theme.cardBackground,
+        backgroundColor: colors.cardBackground,
         borderRadius: 12,
         marginHorizontal: 10,
         marginBottom: 2,
@@ -954,10 +955,10 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 0,
         marginHorizontal: 10,
         marginTop: 20, // Top margin for status bar
-        backgroundColor: theme.background,
+        backgroundColor: colors.background,
         borderRadius: 45,
         elevation: 4,
-        shadowColor: theme.shadowColor,
+        shadowColor: colors.shadowColor,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.15,
         shadowRadius: 6,
@@ -992,7 +993,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     groupName: {
         fontSize: 14,
         fontWeight: '600',
-        color: theme.primaryText
+        color: colors.textPrimary
     },
     memberCount: { fontSize: 11, color: 'gray' },
     adminBanner: {
@@ -1259,53 +1260,63 @@ const createStyles = (theme: any) => StyleSheet.create({
     inputBar: {
         flexDirection: 'row',
         alignItems: 'flex-end',
-        backgroundColor: theme.cardBackground,
-        marginHorizontal: 16,
-        marginBottom: 16,
-        borderRadius: 24,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
+        backgroundColor: colors.surface,
+        marginHorizontal: 12,
+        marginBottom: 20,
+        borderRadius: 28,
+        paddingHorizontal: 4,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: colors.border,
+        shadowColor: colors.shadowColor,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
         elevation: 8,
     },
     iconButton: {
-        paddingHorizontal: 8,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0, 122, 255, 0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        borderRadius: 24,
+        backgroundColor: 'rgba(0, 122, 255, 0.08)',
+        marginRight: 4,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     input: {
         flex: 1,
         fontSize: 16,
-        maxHeight: 120,
-        minHeight: 20,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        color:  theme.inputText,
+        maxHeight: 100,
+        minHeight: 24,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        color: colors.textPrimary,
         fontWeight: '400',
+        backgroundColor: 'transparent',
+        borderRadius: 24,
+        marginVertical: 2,
     },
     sendButton: {
         backgroundColor: '#007AFF',
-        borderRadius: 20,
-        width: 36,
-        height: 36,
+        borderRadius: 24,
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
-        marginLeft: 8,
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
+        marginLeft: 4,
+        shadowColor: '#007AFF',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.4,
+        shadowRadius: 6,
+        elevation: 6,
     },
     inputBarDisabled: {
-        opacity: 0.6,
+        opacity: 0.5,
+        backgroundColor: colors.gray[100],
     },
     inputDisabled: {
-        color: '#999',
+        color: colors.textLight,
+        opacity: 0.7,
     },
 
     // Forward Modal Styles
@@ -1315,7 +1326,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         justifyContent: 'flex-end',
     },
     forwardModal: {
-        backgroundColor:  theme.cardBackground,
+        backgroundColor: colors.cardBackground,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         maxHeight: '80%',
@@ -1331,10 +1342,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     forwardModalTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: theme.secondaryText,
+        color: colors.textSecondary,
     },
     selectedMessagePreview: {
-        backgroundColor:theme.containerBackground,
+        backgroundColor:colors.containerBackground,
         marginHorizontal: 20,
         marginVertical: 12,
         paddingHorizontal: 16,
@@ -1349,7 +1360,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     messagePreviewLabel: {
         fontSize: 12,
-        color: theme.secondaryText,
+        color: colors.textSecondary,
         fontWeight: '600',
     },
     forwardedBadge: {
@@ -1363,12 +1374,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     forwardedBadgeText: {
         fontSize: 10,
-        color: theme.primaryText,
+        color: colors.textPrimary,
         fontWeight: '600',
     },
     selectedMessageText: {
         fontSize: 14,
-        color: theme.secondaryText,
+        color: colors.textSecondary,
         fontStyle: 'italic',
     },
     forwardLoadingContainer: {
@@ -1412,12 +1423,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     forwardContactName: {
         fontSize: 16,
         fontWeight: '600',
-        color: theme.secondaryText,
+        color: colors.textSecondary,
         marginBottom: 2,
     },
     forwardContactType: {
         fontSize: 12,
-        color:theme.tertiaryText,
+        color: colors.textLight,
     },
     forwardEmptyContainer: {
         flex: 1,

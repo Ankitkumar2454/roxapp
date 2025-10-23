@@ -8,18 +8,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  FlatList,
-  Keyboard,
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    FlatList,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { io, Socket } from 'socket.io-client';
@@ -710,7 +710,7 @@ export default function SupportScreen() {
               style={styles.backButton}
               activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={24} color="black" />
+              <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <View style={styles.avatarContainer}>
@@ -858,6 +858,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     marginTop: Spacing.md,
     fontSize: Typography.fontSize.sm,
     color: colors.textSecondary,
+    fontWeight: '500' as const,
   } as any,
   mainContainer: {
     flex: 1,
@@ -882,7 +883,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     marginLeft: Spacing.md,
     fontSize: Typography.fontSize.base,
     color: colors.textPrimary,
-    marginBottom: Spacing.md
+    fontWeight: '400' as const,
   } as any,
   conversationItem: {
     flexDirection: 'row',
@@ -905,7 +906,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   avatarText: {
     color: colors.white,
     fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold as any,
+    fontWeight: '700' as const,
   } as any,
   conversationContent: {
     flex: 1,
@@ -919,14 +920,14 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   } as any,
   customerName: {
     fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.medium as any,
+    fontWeight: '500' as const,
     color: colors.textPrimary,
     flex: 1,
   } as any,
   time: {
     fontSize: Typography.fontSize.xs,
     color: colors.textLight,
-    fontWeight: Typography.fontWeight.normal as any,
+    fontWeight: '400' as const,
   } as any,
   conversationMessageRow: {
     flexDirection: 'row',
@@ -937,7 +938,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     fontSize: Typography.fontSize.sm,
     color: colors.textLight,
     flex: 1,
-    fontWeight: Typography.fontWeight.normal as any,
+    fontWeight: '400' as const,
   } as any,
   unreadBadge: {
     backgroundColor: colors.success,
@@ -951,7 +952,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   unreadText: {
     color: colors.white,
     fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.semibold as any,
+    fontWeight: '600' as const,
   } as any,
   statusBadge: {
     flexDirection: 'row',
@@ -962,7 +963,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   } as any,
   statusText: {
     fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.medium as any,
+    fontWeight: '500' as const,
     marginLeft: Spacing.xs,
   } as any,
   emptyContainer: {
@@ -973,7 +974,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   } as any,
   emptyText: {
     fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.semibold as any,
+    fontWeight: '600' as const,
     color: colors.textSecondary,
     marginTop: Spacing.lg,
   } as any,
@@ -1005,7 +1006,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   backButton: {
     padding: Spacing.sm,
     borderRadius: BorderRadius.lg,
-    backgroundColor: colors.white + '20',
+    backgroundColor: colors.primary + '20',
     marginLeft: Spacing.md,
   } as any,
   headerCenter: {
@@ -1025,39 +1026,39 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   } as any,
   friendName: {
     fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semibold as any,
+    fontWeight: '600' as const,
     color: colors.textPrimary
   } as any,
   avatarContainer: {
     position: 'relative',
-  },
+  } as any,
   loadingMessagesContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as any,
   messagesList: {
-    paddingVertical: 12,
+    paddingVertical: Spacing.md,
     flexGrow: 1,
-    paddingBottom: 20,
-  },
+    paddingBottom: Spacing.xl,
+  } as any,
   messageRow: {
     flexDirection: 'row',
-    marginVertical: 6,
+    marginVertical: Spacing.sm,
     alignItems: 'flex-end',
-    paddingHorizontal: 10,
-  },
+    paddingHorizontal: Spacing.sm,
+  } as any,
   messageLeft: {
     justifyContent: 'flex-start',
     width: '100%',
-  },
+  } as any,
   messageRight: {
     justifyContent: 'flex-end',
     width: '100%',
-  },
+  } as any,
   msgAvatarContainer: {
-    marginRight: 8,
-  },
+    marginRight: Spacing.sm,
+  } as any,
   msgAvatarPlaceholder: {
     width: 28,
     height: 28,
@@ -1068,7 +1069,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   } as any,
   msgAvatarText: {
     fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.semibold as any,
+    fontWeight: '600' as const,
     color: colors.white,
   } as any,
   messageBubble: {
@@ -1088,7 +1089,8 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   } as any,
   messageText: {
     fontSize: Typography.fontSize.sm,
-    lineHeight: Typography.lineHeight.normal,
+    lineHeight: Typography.fontSize.sm * 1.4,
+    fontWeight: '400' as const,
   } as any,
   myText: {
     color: colors.white,
@@ -1105,6 +1107,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   msgTime: {
     fontSize: Typography.fontSize.xs,
     textAlign: 'right',
+    fontWeight: '400' as const,
   } as any,
   myTime: {
     color: colors.white + 'B3',
@@ -1127,6 +1130,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
   noMessagesText: {
     fontSize: Typography.fontSize.sm,
     color: colors.textLight,
+    fontWeight: '400' as const,
   } as any,
   inputContainer: {
     flexDirection: 'row',
@@ -1144,6 +1148,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     maxHeight: 100,
     paddingHorizontal: Spacing.md,
     color: colors.textPrimary,
+    fontWeight: '400' as const,
   } as any,
   sendButton: {
     backgroundColor: colors.primary,

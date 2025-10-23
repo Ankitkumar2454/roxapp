@@ -78,7 +78,7 @@ const createStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   },
   title: {
     fontSize: Typography.fontSize['3xl'],
-    fontWeight: Typography.fontWeight.bold,
+    fontWeight: '700' as const,
     color: colors.primary,
     marginTop: Spacing.sm,
   },
