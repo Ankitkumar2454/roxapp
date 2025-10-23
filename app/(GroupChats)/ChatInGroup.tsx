@@ -23,7 +23,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import io, { Socket } from 'socket.io-client';
 
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
 
 
@@ -41,8 +41,8 @@ const SOCKET_URL = ENDPOINTS.socket;
 
 export default function GroupChatScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(isDark, colors, shadows);
     const router = useRouter();
     const params = useLocalSearchParams();
     const groupId = params.groupId as string;

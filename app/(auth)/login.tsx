@@ -2,8 +2,9 @@ import api from "@/api/axiosInstance";
 import ENDPOINTS from "@/api/endPoints";
 import GlobalMessage from "@/CustomComponents/message";
 import { Storage } from "@/hooks/useLocalAsyncStorage";
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
+import { BorderRadius, Spacing, Typography } from "@/src/styles/commonStyles";
 import { loginPayload, loginResponse, loginResponseData } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -28,8 +29,8 @@ export const greetings = [
 
 export default function LoginScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(isDark, colors, shadows);
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [isReady, setIsReady] = useState(false);
@@ -146,7 +147,7 @@ export default function LoginScreen() {
 
     return (
         <KeyboardAvoidingView
-            style={{ flex: 1, backgroundColor: currentTheme.containerBackground }}
+            style={{ flex: 1, backgroundColor: colors.background }}
             behavior={Platform.OS === "ios" ? "padding" : "height"}
             keyboardVerticalOffset={Platform.OS === "ios" ? 60 : 0}
         >
@@ -155,12 +156,12 @@ export default function LoginScreen() {
                 keyboardShouldPersistTaps="handled"
             >
                 <View style={[styles.card, { width: screenWidth }]}>
-                    <LinearGradient
-                        colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.header}
-                    >
+                        <LinearGradient
+                            colors={[colors.primary, colors.primaryDark]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.header}
+                        >
                         <Animated.Text
                             style={[
                                 styles.loginText,
@@ -179,7 +180,7 @@ export default function LoginScreen() {
                         <TextInput
                             style={styles.input}
                             placeholder="Enter your username here"
-                            placeholderTextColor={currentTheme.placeholderText}
+                            placeholderTextColor={colors.textLight}
                             value={username}
                             onChangeText={setUsername}
                         />
@@ -189,7 +190,7 @@ export default function LoginScreen() {
                         <TextInput
                             style={[styles.input, { flex: 1 }]}
                             placeholder="Enter your password here"
-                            placeholderTextColor={currentTheme.placeholderText}
+                            placeholderTextColor={colors.textLight}
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry={!showPassword} // 👈 toggle visibility
@@ -202,7 +203,7 @@ export default function LoginScreen() {
                             <Ionicons
                                 name={showPassword ? "eye-off-outline" : "eye-outline"}
                                 size={22}
-                                color="#009BFF"
+                                color={colors.primary}
                             />
                         </TouchableOpacity>
                     </View>
@@ -210,9 +211,9 @@ export default function LoginScreen() {
                     <View style={styles.footerRow}>
                         <View style={styles.checkboxRow}></View>
 
-                        <TouchableOpacity onPress={handleLogin} style={{ borderRadius: 10, overflow: "hidden" }}>
+                        <TouchableOpacity onPress={handleLogin} style={{ borderRadius: BorderRadius.lg, overflow: "hidden" }}>
                             <LinearGradient
-                                colors={[currentTheme.buttonGradientStart, currentTheme.buttonGradientEnd]}
+                                colors={[colors.primary, colors.primaryDark]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.arrowBtn}
@@ -220,8 +221,8 @@ export default function LoginScreen() {
                                 <Animated.View style={!loading && { transform: [{ translateX: shakeAnim }] }}>
                                     {
                                         loading ?
-                                            <ActivityIndicator size="small" color={currentTheme.buttonText} style={{ marginLeft: 2 }} /> :
-                                            <Ionicons name="arrow-forward" size={18} color={currentTheme.buttonText} />
+                                            <ActivityIndicator size="small" color={colors.white} style={{ marginLeft: 2 }} /> :
+                                            <Ionicons name="arrow-forward" size={18} color={colors.white} />
                                     }
                                 </Animated.View>
                             </LinearGradient>
@@ -246,87 +247,84 @@ export default function LoginScreen() {
     );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
-        justifyContent: "center", alignItems: "center"
-    },
+        backgroundColor: colors.background,
+        justifyContent: "center", 
+        alignItems: "center"
+    } as any,
     card: {
-        backgroundColor: theme.cardBackground,
-        borderRadius: 20,
+        backgroundColor: colors.surface,
+        borderRadius: BorderRadius['2xl'],
         overflow: "hidden",
-        paddingBottom: 40,
+        paddingBottom: Spacing['4xl'],
         height: screenHeight
-    },
+    } as any,
     header: {
         height: screenHeight * 0.4,
         borderBottomLeftRadius: 0,
         borderBottomRightRadius: 180,
         alignItems: "flex-start",
         justifyContent: "flex-end",
-        paddingHorizontal: 25,
-        paddingBottom: 30,
+        paddingHorizontal: Spacing['2xl'],
+        paddingBottom: Spacing['3xl'],
         position: "relative",
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.25,
-        shadowRadius: 20,
-        elevation: 20,
-    },
+        ...shadows.xl,
+    } as any,
     loginText: {
-        fontSize: 38,
-        color: theme.headerText,
-        fontWeight: "300",
+        fontSize: Typography.fontSize['4xl'],
+        color: colors.white,
+        fontWeight: Typography.fontWeight.light as any,
         position: "absolute",
         top: 100,
-        left: 25
-    },
+        left: Spacing['2xl']
+    } as any,
     subtitle: {
-        fontSize: 30,
-        color: theme.headerText,
-        fontWeight: "200"
-    },
+        fontSize: Typography.fontSize['3xl'],
+        color: colors.white,
+        fontWeight: Typography.fontWeight.light as any
+    } as any,
     infoText: {
-        color: theme.secondaryText,
+        color: colors.textSecondary,
         textAlign: "left",
-        marginTop: 45,
-        marginHorizontal: 25,
-        fontSize: 14
-    },
+        marginTop: Spacing['4xl'],
+        marginHorizontal: Spacing['2xl'],
+        fontSize: Typography.fontSize.sm
+    } as any,
     inputRow: {
         flexDirection: "row",
         alignItems: "center",
         borderBottomWidth: 1.2,
-        borderColor: theme.inputBorder,
-        marginHorizontal: 25,
-        marginTop: 25,
-        paddingBottom: 6
-    },
+        borderColor: colors.border,
+        marginHorizontal: Spacing['2xl'],
+        marginTop: Spacing['2xl'],
+        paddingBottom: Spacing.sm
+    } as any,
     input: {
         flex: 1,
-        color: theme.inputText,
-        fontSize: 15
-    },
+        color: colors.textPrimary,
+        fontSize: Typography.fontSize.sm
+    } as any,
     iconContainer: {
-        paddingHorizontal: 6
-    },
+        paddingHorizontal: Spacing.sm
+    } as any,
     footerRow: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        marginHorizontal: 25,
-        marginTop: 25
-    },
+        marginHorizontal: Spacing['2xl'],
+        marginTop: Spacing['2xl']
+    } as any,
     checkboxRow: {
         flexDirection: "row",
         alignItems: "center"
-    },
+    } as any,
     arrowBtn: {
         width: 100,
         height: 50,
-        borderRadius: 10,
+        borderRadius: BorderRadius.lg,
         justifyContent: "center",
         alignItems: "center"
-    },
+    } as any,
 });

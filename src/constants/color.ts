@@ -1,3 +1,5 @@
+// Legacy color system - maintained for backward compatibility
+// New components should use the advanced system from commonStyles.ts
 export const lightTheme = {
   // Background colors
   background: '#FFFFFF',

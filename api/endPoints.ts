@@ -7,6 +7,7 @@ const ENDPOINTS = {
   },
   users: {
     getAll: "/api/users",
+    all_chats : "/api/messages/messages/chat-partners"
   },
   friends: {
     add: "/api/friends/request",
@@ -34,9 +35,10 @@ const ENDPOINTS = {
   },
   chat: {
     previous_message: "api/messages/messages",
-    markAsRead: "/api/messages/",
+    markAsRead: (messageId: string) => `/api/messages/${messageId}/read`,
+    markAllAsRead: (friendId: string) => `/api/messages/messages/${friendId}/read-all`,
   },
-  calls: {
+    calls: {
     create: "/api/calls",
     join: (callId: string) => `/api/calls/${callId}/join`,
     leave: (callId: string) => `/api/calls/${callId}/leave`,
@@ -51,7 +53,7 @@ const ENDPOINTS = {
     toggleRecording: (callId: string) => `/api/calls/${callId}/recording`,
     stats: "/api/calls/stats",
   },
-  socket: "ws://192.168.0.80:8000",
+  socket: "ws://10.226.38.248:8000",
   whatsappchats: {
     getAllChats: "/api/whatsapp-messages/conversations",
     getChatHistory: "/api/whatsapp-messages/history"

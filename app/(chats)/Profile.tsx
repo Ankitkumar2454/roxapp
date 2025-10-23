@@ -1,19 +1,21 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { useTheme } from '@/src/hooks/useTheme';
+import { ThemeContext } from '@/src/services/ThemeContext';
+import { BorderRadius, Spacing, Typography } from '@/src/styles/commonStyles';
 import { ApiResponse, InfoItem, UserData } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   Dimensions,
   Image,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -21,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 
 
@@ -30,6 +33,10 @@ export default function ProfileScreen() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { theme, toggleTheme } = useContext(ThemeContext);
+  const { isDark, colors, shadows } = useTheme();
+  // const { isDark, colors, shadows } = useTheme();
+  const styles = createStyles(isDark, colors, shadows);
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -146,17 +153,17 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
+        <StatusBar barStyle={theme === "dark" ? "light-content" : "dark-content"} backgroundColor={theme === "dark" ? colors.background : "transparent"} translucent={true} />
         <LinearGradient
-          colors={['#009BFF', '#0066CC']}
+          colors={[colors.primary, colors.primaryDark]}
           style={styles.loadingGradient}
         >
           <View style={styles.loadingContainer}>
             <Animated.View style={[styles.loadingIcon, { transform: [{ scale: scaleAnim }] }]}>
-              <Ionicons name="person-circle" size={80} color="#fff" />
+              <Ionicons name="person-circle" size={80} color={colors.white} />
             </Animated.View>
             <Text style={styles.loadingText}>Loading profile...</Text>
-            <ActivityIndicator size="large" color="#fff" style={styles.loadingSpinner} />
+            <ActivityIndicator size="large" color={colors.white} style={styles.loadingSpinner} />
           </View>
         </LinearGradient>
       </SafeAreaView>
@@ -166,17 +173,17 @@ export default function ProfileScreen() {
   if (error || !userData) {
     return (
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#009BFF" />
+        <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={isDark ? colors.background : "transparent"} translucent={true} />
         <LinearGradient
-          colors={['#009BFF', '#0066CC']}
+          colors={[colors.primary, colors.primaryDark]}
           style={styles.errorGradient}
         >
           <View style={styles.errorContainer}>
-            <Ionicons name="alert-circle-outline" size={64} color="#fff" />
+            <Ionicons name="alert-circle-outline" size={64} color={colors.white} />
             <Text style={styles.errorText}>{error || 'Failed to load profile'}</Text>
             <TouchableOpacity style={styles.retryButton} onPress={fetchUserProfile}>
               <LinearGradient
-                colors={['#fff', '#f0f0f0']}
+                colors={[colors.white, colors.surface]}
                 style={styles.retryButtonGradient}
               >
                 <Text style={styles.retryButtonText}>Try Again</Text>
@@ -192,13 +199,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
-      
-      {/* Header Gradient */}
-      {/* <LinearGradient
-        colors={['#009BFF', '#0066CC']}
-        style={styles.headerGradient}
-      > */}
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={isDark ? colors.background : "transparent"} translucent={true} />
         <Animated.View 
           style={[
             styles.profileSection,
@@ -216,7 +217,7 @@ export default function ProfileScreen() {
             <View style={styles.imageColumn}>
               <View style={styles.avatarContainer}>
                 <LinearGradient
-                  colors={['#fff', '#f8f9fa']}
+                  colors={[colors.white, colors.surface]}
                   style={styles.avatarGradient}
                 >
                   <Image
@@ -226,10 +227,10 @@ export default function ProfileScreen() {
                 </LinearGradient>
                 <TouchableOpacity style={styles.editIconButton}>
                   <LinearGradient
-                    colors={['#009BFF', '#0066CC']}
+                    colors={[colors.primary, colors.primaryDark]}
                     style={styles.editIconGradient}
                   >
-                    <Ionicons name="pencil" size={16} color="#fff" />
+                    <Ionicons name="pencil" size={16} color={colors.white} />
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -243,7 +244,7 @@ export default function ProfileScreen() {
               
               {/* Status Badge */}
               <View style={styles.statusBadge}>
-                <View style={[styles.statusDot, { backgroundColor: userData.isActive ? '#4CAF50' : '#FF5252' }]} />
+                <View style={[styles.statusDot, { backgroundColor: userData.isActive ? colors.success : colors.error }]} />
                 <Text style={styles.statusText}>
                   {userData.isActive ? 'Online' : 'Offline'}
                 </Text>
@@ -283,7 +284,7 @@ export default function ProfileScreen() {
                 <View style={styles.infoRow}>
                   <View style={styles.infoLeft}>
                     <View style={styles.infoIconContainer}>
-                      <Ionicons name={info.icon as any} size={20} color="#667eea" />
+                      <Ionicons name={info.icon as any} size={20} color={colors.secondary} />
                     </View>
                     <View style={styles.infoContent}>
                       <Text style={styles.infoLabel}>{info.label}</Text>
@@ -294,7 +295,7 @@ export default function ProfileScreen() {
                     style={styles.copyButton}
                     onPress={() => handleCopyToClipboard(info.value, info.label)}
                   >
-                    <Ionicons name="copy-outline" size={20} color="#667eea" />
+                    <Ionicons name="copy-outline" size={20} color={colors.secondary} />
                   </TouchableOpacity>
                 </View>
               </Animated.View>
@@ -307,7 +308,7 @@ export default function ProfileScreen() {
             <View style={styles.activityCard}>
               <View style={styles.activityItem}>
                 <View style={styles.activityIconContainer}>
-                  <Ionicons name="time-outline" size={24} color="#667eea" />
+                  <Ionicons name="time-outline" size={24} color={colors.secondary} />
                 </View>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityLabel}>Last Login</Text>
@@ -321,7 +322,7 @@ export default function ProfileScreen() {
               
               <View style={styles.activityItem}>
                 <View style={styles.activityIconContainer}>
-                  <Ionicons name="calendar-outline" size={24} color="#667eea" />
+                  <Ionicons name="calendar-outline" size={24} color={colors.secondary} />
                 </View>
                 <View style={styles.activityContent}>
                   <Text style={styles.activityLabel}>Member Since</Text>
@@ -337,17 +338,17 @@ export default function ProfileScreen() {
           <View style={styles.actionSection}>
             <TouchableOpacity style={styles.editButton}>
               <LinearGradient
-                colors={['#009BFF', '#0066CC']}
+                colors={[colors.primary, colors.primaryDark]}
                 style={styles.buttonGradient}
               >
-                <Ionicons name="pencil" size={18} color="#fff" />
+                <Ionicons name="pencil" size={18} color={colors.white} />
                 <Text style={styles.editButtonText}>Edit</Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <View style={styles.logoutButtonContent}>
-                <Ionicons name="log-out-outline" size={18} color="#e74c3c" />
+                <Ionicons name="log-out-outline" size={18} color={colors.error} />
                 <Text style={styles.logoutButtonText}>Logout</Text>
               </View>
             </TouchableOpacity>
@@ -358,100 +359,96 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
+    backgroundColor: colors.background,
+  } as any,
   
   // Header Styles
   headerGradient: {
-    paddingTop: 20,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
-  },
+    paddingTop: Spacing.xl,
+    paddingBottom: Spacing['3xl'],
+    paddingHorizontal: Spacing.xl,
+  } as any,
   
   // Loading & Error States
   loadingGradient: {
     flex: 1,
-  },
+  } as any,
   errorGradient: {
     flex: 1,
-  },
+  } as any,
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as any,
   loadingIcon: {
-    marginBottom: 20,
-  },
+    marginBottom: Spacing.xl,
+  } as any,
   loadingText: {
-    fontSize: 18,
-    color: '#fff',
-    fontWeight: '600',
-    marginBottom: 20,
-  },
+    fontSize: Typography.fontSize.lg,
+    color: colors.white,
+    fontWeight: Typography.fontWeight.semibold as any,
+    marginBottom: Spacing.xl,
+  } as any,
   loadingSpinner: {
-    marginTop: 10,
-  },
+    marginTop: Spacing.md,
+  } as any,
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-  },
+    paddingHorizontal: Spacing['2xl'],
+  } as any,
   errorText: {
-    fontSize: 16,
-    color: '#fff',
+    fontSize: Typography.fontSize.base,
+    color: colors.white,
     textAlign: 'center',
-    marginTop: 20,
-    marginBottom: 30,
-    fontWeight: '500',
-  },
+    marginTop: Spacing.xl,
+    marginBottom: Spacing['2xl'],
+    fontWeight: Typography.fontWeight.medium as any,
+  } as any,
   retryButton: {
-    borderRadius: 25,
+    borderRadius: BorderRadius['3xl'],
     overflow: 'hidden',
-  },
+  } as any,
   retryButtonGradient: {
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
-  },
+    paddingHorizontal: Spacing['2xl'],
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius['3xl'],
+  } as any,
   retryButtonText: {
-    color: '#009BFF',
-    fontWeight: '600',
-    fontSize: 16,
-  },
+    color: colors.primary,
+    fontWeight: Typography.fontWeight.semibold as any,
+    fontSize: Typography.fontSize.base,
+  } as any,
   
   // Profile Section
   profileSection: {
-    backgroundColor: '#fff',
-    marginTop: 20,
-    marginBottom: 15,
-    borderRadius: 12,
-    marginHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
+    backgroundColor: colors.surface,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginHorizontal: Spacing.xl,
+    ...shadows.md,
+  } as any,
   profileRow: {
     flexDirection: 'row',
-    padding: 15,
+    padding: Spacing.md,
     alignItems: 'center',
-  },
+  } as any,
   imageColumn: {
-    marginRight: 20,
-  },
+    marginRight: Spacing.xl,
+  } as any,
   infoColumn: {
     flex: 1,
     justifyContent: 'center',
-  },
+  } as any,
   avatarContainer: {
     position: 'relative',
-  },
+  } as any,
   avatarGradient: {
     width: 80,
     height: 80,
@@ -459,114 +456,110 @@ const styles = StyleSheet.create({
     padding: 3,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as any,
   avatar: {
     width: 74,
     height: 74,
     borderRadius: 37,
-  },
+  } as any,
   editIconButton: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
-  },
+  } as any,
   editIconGradient: {
     width: 24,
     height: 24,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: '#fff',
-  },
+    borderColor: colors.white,
+  } as any,
   name: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 4,
-  },
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: colors.textPrimary,
+    marginBottom: Spacing.xs,
+  } as any,
   username: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 6,
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.textSecondary,
+    marginBottom: Spacing.sm,
+  } as any,
   role: {
-    fontSize: 13,
-    color: '#009BFF',
-    fontWeight: '600',
-    marginBottom: 8,
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.primary,
+    fontWeight: Typography.fontWeight.semibold as any,
+    marginBottom: Spacing.sm,
+  } as any,
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 155, 255, 0.1)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    backgroundColor: colors.primary + '20',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
     alignSelf: 'flex-start',
-  },
+  } as any,
   statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    marginRight: 8,
-  },
+    marginRight: Spacing.sm,
+  } as any,
   statusText: {
-    fontSize: 14,
-    color: '#009BFF',
-    fontWeight: '500',
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.primary,
+    fontWeight: Typography.fontWeight.medium as any,
+  } as any,
   
   // Scroll Container
   scrollContainer: {
     flex: 1,
     marginTop: 0,
-  },
+  } as any,
   content: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing['3xl'],
+  } as any,
   
   // Section Titles
   sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#2c3e50',
-    marginBottom: 16,
-    marginTop: 20,
-  },
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: colors.textPrimary,
+    marginBottom: Spacing.lg,
+    marginTop: Spacing.xl,
+  } as any,
   
   // Info Section
   infoSection: {
-    marginBottom: 20,
-  },
+    marginBottom: Spacing.xl,
+  } as any,
   infoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+    ...shadows.lg,
+  } as any,
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-  },
+    padding: Spacing.xl,
+  } as any,
   infoLeft: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-  },
+  } as any,
   infoIconContainer: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(0, 155, 255, 0.1)',
+    backgroundColor: colors.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 15,
@@ -624,36 +617,42 @@ const styles = StyleSheet.create({
   },
   activityLabel: {
     fontSize: 14,
-    color: '#7f8c8d',
+    color: colors.textSecondary,
     marginBottom: 4,
     fontWeight: '500',
   },
   activityValue: {
     fontSize: 16,
-    color: '#2c3e50',
+    color: colors.textPrimary,
     fontWeight: '600',
   },
   activityDivider: {
     height: 1,
-    backgroundColor: '#ecf0f1',
+    backgroundColor: colors.borderLight,
     marginVertical: 8,
   },
   
   // Action Section
   actionSection: {
     marginTop: 20,
+    marginBottom: 20,
     flexDirection: 'row',
     gap: 12,
+    paddingHorizontal: 4,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
+    borderRadius: 12,
   },
   editButton: {
     flex: 1,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#009BFF',
+    shadowColor: colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 6,
+    minHeight: 50,
   },
   buttonGradient: {
     flexDirection: 'row',
@@ -661,6 +660,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 18,
     gap: 10,
+    minHeight: 50,
   },
   editButtonText: {
     fontSize: 16,
@@ -669,15 +669,16 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#e74c3c',
-    shadowColor: '#e74c3c',
+    borderColor: colors.error,
+    shadowColor: colors.error,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+    minHeight: 50,
   },
   logoutButtonContent: {
     flexDirection: 'row',
@@ -685,10 +686,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 16,
     gap: 10,
+    minHeight: 50,
   },
   logoutButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#e74c3c',
+    color: colors.error,
   },
 });

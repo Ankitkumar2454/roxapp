@@ -2,7 +2,7 @@ import { Storage } from "@/hooks/useLocalAsyncStorage";
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://192.168.0.80:8000",
+  baseURL: "http://10.226.38.248:8000",
   timeout: 10000,
 });
 

@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -71,8 +71,8 @@ const SOCKET_URL = ENDPOINTS.socket;
 
 export default function ChatMessageScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(isDark, colors, shadows);
     const router = useRouter();
     const params = useLocalSearchParams();
     const [message, setMessage] = useState('');
@@ -416,6 +416,32 @@ export default function ChatMessageScreen() {
             }
         } catch (error) {
             console.error('Error marking messages as read:', error);
+        }
+    };
+
+    const markAllMessagesAsRead = async () => {
+        try {
+            if (friendId && currentUserId) {
+                console.log('Marking all messages as read for conversation with:', friendId);
+                
+                const response = await api.put(ENDPOINTS.chat.markAllAsRead(friendId));
+
+                if (response.data.success) {
+                    console.log('All messages marked as read successfully');
+                    
+                    // Update local state to mark all messages as read
+                    setMessages(prev => prev.map(msg => {
+                        if (msg.senderId !== currentUserId) {
+                            return { ...msg, isRead: true };
+                        }
+                        return msg;
+                    }));
+                } else {
+                    console.log('Failed to mark messages as read:', response.data.message);
+                }
+            }
+        } catch (error) {
+            console.error('Error marking all messages as read:', error);
         }
     };
 
@@ -1208,6 +1234,14 @@ export default function ChatMessageScreen() {
         };
     }, [friendId]);
 
+    // Mark all messages as read when opening the chat
+    useEffect(() => {
+        if (friendId && currentUserId && !isLoading) {
+            // Call API to mark all messages as read when opening the chat
+            markAllMessagesAsRead();
+        }
+    }, [friendId, currentUserId, isLoading]);
+
     // Mark messages as read when component mounts or messages change
     useEffect(() => {
         if (messages.length > 0 && currentUserId && !isLoading) {
@@ -1261,8 +1295,8 @@ export default function ChatMessageScreen() {
     if (isLoading) {
         return (
             <SafeAreaView style={styles.loadingWrapper}>
-                <ActivityIndicator size="large" color="#00A8E8" />
-                <Text style={{ color: '#777', marginTop: 10 }}>Loading chat...</Text>
+                <ActivityIndicator size="large" color={colors.primary} />
+                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading chat...</Text>
             </SafeAreaView>
         );
     }
@@ -1271,13 +1305,13 @@ export default function ChatMessageScreen() {
         <SafeAreaView style={styles.container}>
             <StatusBar
                 barStyle={theme === "dark" ? "light-content" : "dark-content"}
-                backgroundColor={currentTheme.background}
+                backgroundColor={colors.background}
             />
 
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity
-                    onPress={() => router.back()}
+                    onPress={() => router.replace("/(chats)/Chat")}
                     style={styles.backButton}
                     activeOpacity={0.7}
                 >
@@ -1376,7 +1410,7 @@ export default function ChatMessageScreen() {
                                                     resizeMode="cover"
                                                 />
                                                 <View style={styles.imageOverlay}>
-                                                    <Ionicons name="image" size={16} color="#fff" />
+                                                    <Ionicons name="image" size={16} color={colors.white} />
                                                 </View>
                                             </View>
                                         ) : msg.messageType === 'voice' ? (
@@ -1394,7 +1428,7 @@ export default function ChatMessageScreen() {
                                                     <Ionicons
                                                         name={isPlaying && sound ? "pause" : "play"}
                                                         size={20}
-                                                        color={isMe ? "#fff" : "#2196F3"}
+                                                        color={isMe ? colors.white : colors.primary}
                                                     />
                                                 </TouchableOpacity>
                                                 <View style={styles.voiceWaveform}>
@@ -1416,7 +1450,7 @@ export default function ChatMessageScreen() {
                                                     resizeMode="cover"
                                                 />
                                                 <View style={styles.videoOverlay}>
-                                                    <Ionicons name="play" size={24} color="#fff" />
+                                                    <Ionicons name="play" size={24} color={colors.white} />
                                                 </View>
                                             </View>
                                         ) : (msg.messageType === 'audio' || (msg.text && msg.text.match(/\.(mp3|wav|m4a|aac|ogg)$/i))) ? (
@@ -1434,7 +1468,7 @@ export default function ChatMessageScreen() {
                                                     <Ionicons
                                                         name={isPlaying && sound ? "pause" : "play"}
                                                         size={20}
-                                                        color={isMe ? "#fff" : "#2196F3"}
+                                                        color={isMe ? colors.white : colors.primary}
                                                     />
                                                 </TouchableOpacity>
                                                 <View style={styles.audioWaveform}>
@@ -1451,7 +1485,7 @@ export default function ChatMessageScreen() {
                                          ) : (msg.messageType === 'document' || (msg.text && msg.text.match(/\.(pdf|doc|docx|txt|xls|xlsx)$/i))) ? (
                                              <View style={styles.documentMessageContainer}>
                                                  <View style={styles.documentIconContainer}>
-                                                     <Ionicons name="document-text" size={32} color={isMe ? "#fff" : "#607D8B"} />
+                                                     <Ionicons name="document-text" size={32} color={isMe ? colors.white : colors.textSecondary} />
                                                  </View>
                                                  <View style={styles.documentInfoContainer}>
                                                      <Text style={[styles.documentFileName, isMe ? styles.myText : styles.theirText]} numberOfLines={1}>
@@ -1470,7 +1504,7 @@ export default function ChatMessageScreen() {
                                                          }}
                                                          disabled={isDownloadingPDF}
                                                      >
-                                                         <Ionicons name="eye" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                         <Ionicons name="eye" size={18} color={isMe ? colors.white : colors.textSecondary} />
                                                      </TouchableOpacity>
                                                      <TouchableOpacity
                                                          style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
@@ -1481,9 +1515,9 @@ export default function ChatMessageScreen() {
                                                          disabled={isDownloadingPDF}
                                                      >
                                                          {isDownloadingPDF ? (
-                                                             <ActivityIndicator size="small" color={isMe ? "#fff" : "#607D8B"} />
+                                                             <ActivityIndicator size="small" color={isMe ? colors.white : colors.textSecondary} />
                                                          ) : (
-                                                             <Ionicons name="download" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                             <Ionicons name="download" size={18} color={isMe ? colors.white : colors.textSecondary} />
                                                          )}
                                                      </TouchableOpacity>
                                                  </View>
@@ -1950,15 +1984,20 @@ export default function ChatMessageScreen() {
     );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
+        backgroundColor: colors.background,
     },
     loadingWrapper: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center'
+    },
+    loadingText: {
+        marginTop: 10,
+        fontSize: 16,
+        color: colors.textSecondary,
     },
     keyboardAvoidingContainer: {
         flex: 1,
@@ -1966,9 +2005,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     chatContainer: {
         flex: 1,
         marginTop: 8,
-        // backgroundColor: theme.cardBackground,
+        // backgroundColor: colors.cardBackground,
         // borderWidth: 1,
-        borderColor: theme.inputBorder,
+        borderColor: colors.inputBorder,
         borderRadius: 12,
         marginHorizontal: 10,
         marginBottom: 2,
@@ -1982,21 +2021,21 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 0,
         marginHorizontal: 10,
         marginTop: 20, // Top margin for status bar
-        backgroundColor: theme.background,
+        backgroundColor: colors.background,
         borderRadius: 45,
         elevation: 4,
-        shadowColor: theme.shadowColor,
+        shadowColor: colors.shadowColor,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.15,
         shadowRadius: 6,
         borderWidth: 0,
-        borderColor: theme.inputBorder,
+        borderColor: colors.inputBorder,
         zIndex: 1000, // Ensure header stays on top
     },
     backButton: {
         padding: 6,
         borderRadius: 16,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
         marginLeft: 12,
     },
     headerCenter: {
@@ -2013,7 +2052,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     headerIconButton: {
         padding: 6,
         borderRadius: 12,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
     },
     userInfo: {
         flex: 1,
@@ -2023,11 +2062,11 @@ const createStyles = (theme: any) => StyleSheet.create({
     friendName: {
         fontSize: 14,
         fontWeight: '600',
-        color: theme.primaryText
+        color: colors.textPrimary
     },
     statusText: {
         fontSize: 11,
-        color: theme.secondaryText,
+        color: colors.textSecondary,
         marginTop: 2
     },
 
@@ -2067,20 +2106,20 @@ const createStyles = (theme: any) => StyleSheet.create({
     typingAvatarText: {
         fontSize: 12,
         fontWeight: '600',
-        color: theme.secondaryText,
+        color: colors.secondaryText,
     },
     typingIconContainer: {
         position: 'absolute',
         bottom: -2,
         right: -2,
-        backgroundColor: '#fff',
+        backgroundColor: colors.surface,
         borderRadius: 8,
         width: 16,
         height: 16,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#009BFF',
+        borderColor: colors.primary,
     },
     msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
 
@@ -2089,27 +2128,29 @@ const createStyles = (theme: any) => StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        shadowColor: theme.shadowColor,
+        shadowColor: colors.shadowColor,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 2,
     },
     myBubble: {
-        backgroundColor: '#2196F3',
+        backgroundColor: colors.primary,
         borderBottomRightRadius: 4
     },
     theirBubble: {
-        backgroundColor: '#fff',
-        borderBottomLeftRadius: 4
+        backgroundColor: colors.surface,
+        borderBottomLeftRadius: 4,
+        borderWidth: 1,
+        borderColor: colors.border,
     },
-    forwardingBubble: { backgroundColor: '#FF9800', opacity: 0.8 },
+    forwardingBubble: { backgroundColor: colors.warning, opacity: 0.8 },
     messageText: { fontSize: 15 },
-    myText: { color: '#fff' },
-    theirText: { color: '#333' },
+    myText: { color: colors.white },
+    theirText: { color: colors.textPrimary },
     msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
     myTime: { color: 'rgba(255,255,255,0.7)' },
-    theirTime: { color: '#999' },
+    theirTime: { color: colors.textSecondary },
     messageFooter: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -2155,57 +2196,83 @@ const createStyles = (theme: any) => StyleSheet.create({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: '#999',
+        backgroundColor: colors.textSecondary,
         marginHorizontal: 2,
     },
 
     inputBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.cardBackground,
+        backgroundColor: isDark ? colors.surface : colors.white,
         marginHorizontal: 10,
         marginBottom: 10,
         borderRadius: 25,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        shadowColor: theme.shadowColor,
-        shadowOpacity: 0.05,
-        shadowRadius: 3,
-        elevation: 8,
-        borderWidth: 1,
-        borderColor: theme.inputBorder,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        shadowColor: isDark ? colors.shadowColor : '#000',
+        shadowOpacity: isDark ? 0.1 : 0.15,
+        shadowRadius: isDark ? 4 : 8,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: isDark ? 6 : 10,
+        borderWidth: isDark ? 1 : 1,
+        borderColor: isDark ? colors.border : colors.borderLight,
     },
-    iconButton: { paddingHorizontal: 6 },
+    iconButton: { 
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        borderRadius: 20,
+        backgroundColor: 'transparent',
+    },
     input: {
         flex: 1,
-        fontSize: 15,
+        fontSize: 16,
         maxHeight: 100,
-        paddingHorizontal: 10,
-        color: theme.inputText,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        color: colors.textPrimary,
+        backgroundColor: 'transparent',
+        borderRadius: 20,
     },
     sendButton: {
-        backgroundColor: '#007AFF',
-        borderRadius: 20,
-        width: 40,
-        height: 40,
+        backgroundColor: colors.primary,
+        borderRadius: 22,
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: colors.primary,
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 4,
     },
     recordingButton: {
-        backgroundColor: '#FF5722',
-        borderRadius: 20,
-        width: 40,
-        height: 40,
+        backgroundColor: colors.error,
+        borderRadius: 22,
+        width: 44,
+        height: 44,
         alignItems: 'center',
         justifyContent: 'center',
+        shadowColor: colors.error,
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 4,
     },
     recordingContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#FF5722',
-        borderRadius: 20,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        backgroundColor: colors.error,
+        borderRadius: 25,
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        marginHorizontal: 10,
+        marginBottom: 10,
+        shadowColor: colors.error,
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 4,
     },
     recordingIndicator: {
         marginRight: 8,
@@ -2217,11 +2284,12 @@ const createStyles = (theme: any) => StyleSheet.create({
         backgroundColor: '#fff',
     },
     recordingText: {
-        color: '#fff',
-        fontSize: 14,
+        color: colors.white,
+        fontSize: 15,
         fontWeight: '600',
-        marginRight: 8,
-        minWidth: 40,
+        marginRight: 10,
+        minWidth: 50,
+        textAlign: 'center',
     },
 
     // Forwarded message styles
@@ -2413,7 +2481,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         justifyContent: 'flex-end',
     },
     forwardModal: {
-        backgroundColor: theme.cardBackground,
+        backgroundColor: colors.cardBackground,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         maxHeight: '80%',
@@ -2426,15 +2494,15 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: theme.inputBorder,
+        borderBottomColor: colors.inputBorder,
     },
     forwardModalTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: theme.secondaryText,
+        color: colors.secondaryText,
     },
     selectedMessagePreview: {
-        backgroundColor: theme.containerBackground,
+        backgroundColor: colors.containerBackground,
         marginHorizontal: 20,
         marginVertical: 12,
         paddingHorizontal: 16,
@@ -2451,7 +2519,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     messagePreviewLabel: {
         fontSize: 12,
-        color: theme.secondaryText,
+        color: colors.secondaryText,
         fontWeight: '600',
     },
     forwardedBadge: {
@@ -2465,12 +2533,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     forwardedBadgeText: {
         fontSize: 10,
-        color: theme.primaryText,
+        color: colors.primaryText,
         fontWeight: '600',
     },
     selectedMessageText: {
         fontSize: 14,
-        color: theme.secondaryText,
+        color: colors.secondaryText,
         fontStyle: 'italic',
     },
     forwardLoadingContainer: {
@@ -2493,7 +2561,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: theme.inputBorder,
+        borderBottomColor: colors.inputBorder,
     },
     forwardContactAvatar: {
         marginRight: 12,
@@ -2516,12 +2584,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     forwardContactName: {
         fontSize: 16,
         fontWeight: '600',
-        color: theme.secondaryText,
+        color: colors.secondaryText,
         marginBottom: 2,
     },
     forwardContactType: {
         fontSize: 12,
-        color: theme.tertiaryText,
+        color: colors.tertiaryText,
     },
     forwardEmptyContainer: {
         flex: 1,

@@ -1,7 +1,8 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from '@/src/hooks/useTheme';
 import { ThemeContext } from "@/src/services/ThemeContext";
+import { BorderRadius, Spacing, Typography } from '@/src/styles/commonStyles';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -16,8 +17,8 @@ export default function GroupsScreen() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filteredGroups, setFilteredGroups] = useState([]);
   const { theme, toggleTheme } = useContext(ThemeContext);
-  const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-  const styles = createStyles(currentTheme);
+  const { isDark, colors, shadows } = useTheme();
+  const styles = createStyles(isDark, colors, shadows);
 
   const handleGroupChatNavigation = (groupId: any) => {
     router.replace({
@@ -31,8 +32,8 @@ export default function GroupsScreen() {
   };
 
   const getRandomColor = () => {
-    const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
-    return colors[Math.floor(Math.random() * colors.length)];
+    const colorPalette = [colors.success, colors.info, colors.warning, colors.secondary, colors.error, colors.primary];
+    return colorPalette[Math.floor(Math.random() * colorPalette.length)];
   };
 
   // Search filtering function
@@ -112,45 +113,77 @@ export default function GroupsScreen() {
     filterGroups(searchTerm);
   }, [groups]);
 
-  const renderGroupItem = ({ item }: any) => (
-    <TouchableOpacity
-      style={styles.groupItem}
-      onPress={() => handleGroupChatNavigation(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.avatarContainer}>
-        <Image
-          source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${getRandomColor().replace('#', '')}&fontSize=20&fontWeight=600` }}
-          style={styles.avatarImage}
-          defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${getRandomColor().replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
-        />
-        {/* <View style={styles.memberCountBadge}>
-          <Ionicons name="people" size={10} color="#fff" />
-          <Text style={styles.memberCountText}>{item.memberCount}</Text>
-        </View> */}
-      </View>
+  const renderGroupItem = ({ item, index }: { item: any; index: number }) => {
+    const bgColor = getRandomColor();
+    const isActive = item.isActive || Math.random() > 0.3; // Simulate active groups
+    const hasRecentActivity = Math.random() > 0.4; // Simulate recent activity
+    const isAdmin = item.admins?.some((admin: any) => admin._id === 'current-user-id') || false; // You can replace with actual user check
 
-      <View style={styles.groupContent}>
-        <View style={styles.groupHeader}>
-          <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.time}>{item.memberCount} members</Text>
+    return (
+      <TouchableOpacity
+        style={styles.groupItemTouchable}
+        onPress={() => handleGroupChatNavigation(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.avatarContainer}>
+          <Image
+            source={{ uri: `https://api.dicebear.com/7.x/initials/png?seed=${item.name}&backgroundColor=${bgColor.replace('#', '')}&fontSize=20&fontWeight=600` }}
+            style={styles.avatarImage}
+            defaultSource={{ uri: `https://ui-avatars.com/api/?name=${item.name}&background=${bgColor.replace('#', '')}&color=fff&size=48&bold=true&format=png&font-size=0.6` }}
+          />
+          
+          {/* Group Activity Indicator */}
+          <View style={[
+            styles.activityIndicator, 
+            { backgroundColor: isActive ? colors.success : colors.textSecondary }
+          ]} />
+          
+          {/* Admin Badge */}
+          {isAdmin && (
+            <View style={styles.adminBadge}>
+              <Ionicons name="shield-checkmark" size={10} color={colors.white} />
+            </View>
+          )}
         </View>
-        <View style={styles.messageRow}>
-          <Text style={styles.message} numberOfLines={1}>
-            {item.description || 'No description available'}
-          </Text>
+
+        <View style={styles.groupContent}>
+          <View style={styles.groupHeader}>
+            <View style={styles.nameContainer}>
+              <Text style={styles.name} numberOfLines={1}>{item.name}</Text>
+              {isActive && <View style={styles.activeDot} />}
+            </View>
+            <View style={styles.timeContainer}>
+              <Text style={styles.time}>{item.memberCount} members</Text>
+              {hasRecentActivity && (
+                <View style={styles.activityBadge}>
+                  <Text style={styles.activityText}>!</Text>
+                </View>
+              )}
+            </View>
+          </View>
+          
+          <View style={styles.messageRow}>
+            <View style={styles.messageContainer}>
+              <Text style={styles.message} numberOfLines={1}>
+                {item.description || 'No description available'}
+              </Text>
+              {hasRecentActivity && (
+                <View style={styles.activityIndicator} />
+              )}
+            </View>
+          </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const EmptyState = () => (
     <View style={styles.emptyContainer}>
       <LinearGradient
-        colors={['#009BFF', '#0066CC']}
+        colors={[colors.primary, colors.primaryDark]}
         style={styles.emptyIconContainer}
       >
-        <Ionicons name="people-outline" size={60} color="#fff" />
+        <Ionicons name="people-outline" size={60} color={colors.white} />
       </LinearGradient>
       <Text style={styles.emptyText}>No Groups Yet</Text>
       <Text style={styles.emptySubtext}>
@@ -162,10 +195,10 @@ export default function GroupsScreen() {
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={['#009BFF', '#0066CC']}
+          colors={[colors.primary, colors.primaryDark]}
           style={styles.addButtonGradient}
         >
-          <Ionicons name="add-circle" size={20} color="#fff" />
+          <Ionicons name="add-circle" size={20} color={colors.white} />
           <Text style={styles.addFriendsButtonText}>Create a Group</Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -175,12 +208,12 @@ export default function GroupsScreen() {
   const ErrorState = () => (
     <View style={styles.errorContainer}>
       <View style={styles.errorIconContainer}>
-        <Ionicons name="alert-circle-outline" size={64} color="#FF5722" />
+        <Ionicons name="alert-circle-outline" size={64} color={colors.error} />
       </View>
       <Text style={styles.errorTitle}>Oops! Something went wrong</Text>
       <Text style={styles.errorMessage}>{error}</Text>
       <TouchableOpacity style={styles.retryButton} onPress={getAllGroupChats}>
-        <Ionicons name="reload" size={20} color="#fff" />
+        <Ionicons name="reload" size={20} color={colors.white} />
         <Text style={styles.retryButtonText}>Try Again</Text>
       </TouchableOpacity>
     </View>
@@ -189,7 +222,7 @@ export default function GroupsScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#007AFF" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading groups...</Text>
       </View>
     );
@@ -201,20 +234,23 @@ export default function GroupsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar backgroundColor="#667eea" barStyle="light-content" />
+      <StatusBar
+        barStyle={theme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor={theme === "dark" ? colors.background : "transparent"}
+      />
       <View style={styles.listHeader}>
         <View style={styles.searchContainer}>
-          <Ionicons name="search" size={20} color="#667eea" />
+          <Ionicons name="search" size={20} color={colors.secondary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search groups..."
-            placeholderTextColor={currentTheme.placeholderText}
+            placeholderTextColor={colors.textLight}
             value={searchTerm}
             onChangeText={handleSearchChange}
           />
           {searchTerm.length > 0 && (
             <TouchableOpacity onPress={() => handleSearchChange('')}>
-              <Ionicons name="close-circle" size={20} color="#999" />
+              <Ionicons name="close-circle" size={20} color={colors.textLight} />
             </TouchableOpacity>
           )}
         </View>
@@ -229,8 +265,8 @@ export default function GroupsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#009BFF']}
-            tintColor="#009BFF"
+            colors={[colors.primary]}
+            tintColor={colors.primary}
           />
         }
         contentContainerStyle={filteredGroups.length === 0 ? styles.emptyListContent : undefined}
@@ -239,216 +275,252 @@ export default function GroupsScreen() {
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.background,
-  },
+    backgroundColor: colors.background,
+  } as any,
 
   // Header Styles
   listHeader: {
-    paddingHorizontal: 20,
-    paddingVertical: 10
-  },
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md
+  } as any,
 
   // Search Styles
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.searchBackground,
-    borderRadius: 25,
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius['2xl'],
+    paddingHorizontal: Spacing.lg,
     height: 50,
-    shadowColor: theme.shadowColor,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
+    ...shadows.md,
+  } as any,
   searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: theme.searchInputText,
-  },
+    marginLeft: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: colors.textPrimary,
+  } as any,
 
-  // Group Item Styles
-  groupItem: {
+  // Group Item Styles - Card Design
+  groupItemTouchable: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: theme.chatItemBackground,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    // borderWidth: 1,
-    marginVertical:1,
-    borderBottomColor: theme.chatItemBorder,
-    elevation: 2
-  },
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    marginHorizontal: Spacing.lg,
+    marginVertical: Spacing.xs,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderBottomWidth: 0,
+    ...shadows.sm,
+  } as any,
 
   // Avatar Styles
   avatarContainer: {
     position: 'relative',
-    marginRight: 12,
-  },
+    marginRight: Spacing.lg,
+  } as any,
   avatarImage: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-  },
-  memberCountBadge: {
-    position: 'absolute',
-    bottom: 1,
-    right: 1,
-    backgroundColor: '#667eea',
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     borderWidth: 2,
-    borderColor: theme.inputBorder,
-  },
-  memberCountText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '700',
-  },
+    borderColor: colors.border,
+  } as any,
+  activityIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.surface,
+  } as any,
+  adminBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: colors.warning,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: colors.surface,
+  } as any,
 
   // Group Content Styles
   groupContent: {
     flex: 1,
     justifyContent: 'center',
-  },
+  } as any,
   groupHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: Spacing.sm,
+  } as any,
+  nameContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
-  },
-  name: {
-    fontSize: 17,
-    fontWeight: '500',
-    color:  theme.primaryText,
     flex: 1,
-  },
+  } as any,
+  name: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: colors.textPrimary,
+    marginRight: Spacing.xs,
+  } as any,
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+    marginLeft: Spacing.xs,
+  } as any,
+  timeContainer: {
+    alignItems: 'flex-end',
+  } as any,
   time: {
-    fontSize: 12,
-    color: theme.tertiaryText,
-    fontWeight: '400',
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.textSecondary,
+    fontWeight: Typography.fontWeight.medium as any,
+  } as any,
+  activityBadge: {
+    backgroundColor: colors.error,
+    borderRadius: 8,
+    width: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  } as any,
+  activityText: {
+    fontSize: Typography.fontSize.xs,
+    color: colors.white,
+    fontWeight: Typography.fontWeight.bold as any,
+  } as any,
   messageRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  message: {
-    fontSize: 14,
-    color: theme.tertiaryText,
+  } as any,
+  messageContainer: {
     flex: 1,
-    fontWeight: '400',
-  },
+    flexDirection: 'row',
+    alignItems: 'center',
+  } as any,
+  message: {
+    fontSize: Typography.fontSize.sm,
+    color: colors.textSecondary,
+    flex: 1,
+    fontWeight: Typography.fontWeight.normal as any,
+  } as any,
 
   // Loading Styles
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.background,
-  },
+    backgroundColor: colors.background,
+  } as any,
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color:  theme.emptyStateSubtext,
-    fontWeight: '500',
-  },
+    marginTop: Spacing.lg,
+    fontSize: Typography.fontSize.base,
+    color: colors.textSecondary,
+    fontWeight: Typography.fontWeight.medium as any,
+  } as any,
 
   // Empty State Styles
   emptyListContent: {
     flexGrow: 1,
-  },
+  } as any,
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 80,
     paddingHorizontal: 40,
-  },
+  } as any,
   emptyIconContainer: {
     width: 120,
     height: 120,
     borderRadius: 60,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
-  },
+    marginBottom: Spacing['2xl'],
+  } as any,
   emptyText: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: theme.emptyStateText,
-    marginBottom: 8,
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: colors.textPrimary,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
-  },
+  } as any,
   emptySubtext: {
-    fontSize: 16,
-    color:  theme.emptyStateSubtext,
+    fontSize: Typography.fontSize.base,
+    color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
+    marginBottom: Spacing['2xl'],
+  } as any,
   addFriendsButton: {
-    borderRadius: 30,
+    borderRadius: BorderRadius['3xl'],
     overflow: 'hidden',
-  },
+  } as any,
   addButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    gap: 12,
-  },
+    paddingHorizontal: Spacing['2xl'],
+    paddingVertical: Spacing.lg,
+    gap: Spacing.md,
+  } as any,
   addFriendsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+    color: colors.white,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+  } as any,
 
   // Error State Styles
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
-    backgroundColor: '#fff',
-  },
+    paddingHorizontal: Spacing['2xl'],
+    backgroundColor: colors.background,
+  } as any,
   errorIconContainer: {
-    marginBottom: 20,
-  },
+    marginBottom: Spacing.xl,
+  } as any,
   errorTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: theme.tertiaryText,
-    marginBottom: 8,
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: colors.textPrimary,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
-  },
+  } as any,
   errorMessage: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: Typography.fontSize.sm,
+    color: colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
-  },
+    marginBottom: Spacing['2xl'],
+  } as any,
   retryButton: {
     flexDirection: 'row',
-    backgroundColor: '#FF5722',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
+    backgroundColor: colors.error,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
-    gap: 8,
-  },
+    gap: Spacing.sm,
+  } as any,
   retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+    color: colors.white,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+  } as any,
 });

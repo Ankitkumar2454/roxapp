@@ -2,9 +2,11 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
+import { useTheme } from '@/src/hooks/useTheme';
+import { BorderRadius, Spacing, Typography } from '@/src/styles/commonStyles';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -92,6 +94,8 @@ export default function SupportScreen() {
   const [searchTerm, setSearchTerm] = useState('');
   const [wsConnected, setWsConnected] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
+  const { isDark, colors, shadows } = useTheme();
+  const styles = createStyles(isDark, colors, shadows);
   const ws = useRef<Socket | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const reconnectTimeout = useRef<number | null>(null);
@@ -380,13 +384,13 @@ export default function SupportScreen() {
   const getStatusColor = (status: string): string => {
     switch (status) {
       case 'active':
-        return '#2196F3';
+        return colors.info;
       case 'resolved':
-        return '#4CAF50';
+        return colors.success;
       case 'pending':
-        return '#FF9800';
+        return colors.warning;
       default:
-        return '#9E9E9E';
+        return colors.textSecondary;
     }
   };
 
@@ -467,7 +471,7 @@ export default function SupportScreen() {
                   <Ionicons name="checkmark-done" size={14} color="rgba(255,255,255,0.7)" style={styles.messageStatusIcon} />
                 )}
                 {item.status === 'failed' && (
-                  <Ionicons name="alert-circle" size={14} color="#ff6b6b" style={styles.messageStatusIcon} />
+                  <Ionicons name="alert-circle" size={14} color={colors.error} style={styles.messageStatusIcon} />
                 )}
               </View>
             )}
@@ -479,7 +483,7 @@ export default function SupportScreen() {
 
   const ListEmptyComponent = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="chatbubbles-outline" size={80} color="#ccc" />
+      <Ionicons name="chatbubbles-outline" size={80} color={colors.textSecondary} />
       <Text style={styles.emptyText}>No Support Conversations</Text>
       <Text style={styles.emptySubtext}>Messages from customers will appear here</Text>
     </View>
@@ -638,6 +642,17 @@ export default function SupportScreen() {
     };
   }, []);
 
+  const getTabBarStyle = () => ({
+    display: 'flex' as const,
+    backgroundColor: colors.surface,
+    borderTopColor: colors.border,
+    borderTopWidth: 0.5,
+    height: 115,
+    paddingBottom: 50,
+    paddingTop: 5,
+    position: 'absolute' as const,
+  });
+
   useEffect(() => {
     if (selectedConversation) {
       // Hide tab bar when chat is open
@@ -646,13 +661,13 @@ export default function SupportScreen() {
         headerShown: false
       });
     } else {
-      // Show tab bar when on conversation list
+      // Show tab bar when on conversation list - use consistent styling
       navigation.setOptions({
-        tabBarStyle: { display: 'flex' },
+        tabBarStyle: getTabBarStyle(),
         headerShown: true
       });
     }
-  }, [selectedConversation, navigation]);
+  }, [selectedConversation, navigation, colors]);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
@@ -671,7 +686,7 @@ export default function SupportScreen() {
   if ((loading || !wsConnected) && conversations.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#009BFF" />
+        <ActivityIndicator size="large" color={colors.primary} />
         <Text style={styles.loadingText}>Loading conversations...</Text>
       </View>
     );
@@ -725,7 +740,7 @@ export default function SupportScreen() {
           </View>
           {loadingMessages ? (
             <View style={styles.loadingMessagesContainer}>
-              <ActivityIndicator size="large" color="#009BFF" />
+              <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.loadingText}>Loading messages...</Text>
             </View>
           ) : (<>
@@ -765,9 +780,9 @@ export default function SupportScreen() {
                 disabled={sendingMessage || !inputValue.trim()}
               >
                 {sendingMessage ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActivityIndicator size="small" color={colors.white} />
                 ) : (
-                  <Ionicons name="send" size={20} color="#fff" />
+                  <Ionicons name="send" size={20} color={colors.white} />
                 )}
               </TouchableOpacity>
             </View>
@@ -784,7 +799,7 @@ export default function SupportScreen() {
           <View style={styles.mainContainer}>
             <View style={styles.listHeader}>
               <View style={styles.searchContainer}>
-                <Ionicons name="search" size={18} color="#999" />
+                <Ionicons name="search" size={18} color={colors.textLight} />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Search by name or number..."
@@ -793,7 +808,7 @@ export default function SupportScreen() {
                 />
                 {searchTerm.length > 0 && (
                   <TouchableOpacity onPress={() => setSearchTerm('')}>
-                    <Ionicons name="close-circle" size={20} color="#999" />
+                    <Ionicons name="close-circle" size={20} color={colors.textLight} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -808,8 +823,8 @@ export default function SupportScreen() {
                 <RefreshControl
                   refreshing={refreshing}
                   onRefresh={onRefresh}
-                  colors={['#009BFF']}
-                  tintColor="#009BFF"
+                  colors={[colors.primary]}
+                  tintColor={colors.primary}
                 />
               }
               contentContainerStyle={filteredConversations.length === 0 ? styles.emptyListContent : undefined}
@@ -828,199 +843,191 @@ export default function SupportScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
+    backgroundColor: colors.background,
+  } as any,
 
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
+  } as any,
   loadingText: {
-    marginTop: 10,
-    fontSize: 14,
-    color: '#666',
-  },
+    marginTop: Spacing.md,
+    fontSize: Typography.fontSize.sm,
+    color: colors.textSecondary,
+  } as any,
   mainContainer: {
     flex: 1,
-  },
+  } as any,
   listHeader: {
-    padding: 16,
-    backgroundColor: '#fff',
+    padding: Spacing.lg,
+    backgroundColor: colors.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
+    borderBottomColor: colors.border,
+  } as any,
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 25,
-    paddingHorizontal: 16,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius['2xl'],
+    paddingHorizontal: Spacing.lg,
     height: 50,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
+    ...shadows.md,
+  } as any,
   searchInput: {
     flex: 1,
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#333',
-    marginBottom:10
-  },
+    marginLeft: Spacing.md,
+    fontSize: Typography.fontSize.base,
+    color: colors.textPrimary,
+    marginBottom: Spacing.md
+  } as any,
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    backgroundColor: colors.surface,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     borderBottomWidth: 0.5,
-    borderBottomColor: '#e0e0e0',
-  },
+    borderBottomColor: colors.border,
+  } as any,
   avatarPlaceholder: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#009BFF',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-  },
+    marginRight: Spacing.md,
+  } as any,
   avatarText: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
+    color: colors.white,
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+  } as any,
   conversationContent: {
     flex: 1,
     justifyContent: 'center',
-  },
+  } as any,
   conversationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
-  },
+    marginBottom: Spacing.xs,
+  } as any,
   customerName: {
-    fontSize: 17,
-    fontWeight: '500',
-    color: '#000',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: colors.textPrimary,
     flex: 1,
-  },
+  } as any,
   time: {
-    fontSize: 12,
-    color: '#999',
-    fontWeight: '400',
-  },
+    fontSize: Typography.fontSize.xs,
+    color: colors.textLight,
+    fontWeight: Typography.fontWeight.normal as any,
+  } as any,
   conversationMessageRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
+  } as any,
   lastMessage: {
-    fontSize: 14,
-    color: '#999',
+    fontSize: Typography.fontSize.sm,
+    color: colors.textLight,
     flex: 1,
-    fontWeight: '400',
-  },
+    fontWeight: Typography.fontWeight.normal as any,
+  } as any,
   unreadBadge: {
-    backgroundColor: '#25D366',
-    borderRadius: 10,
+    backgroundColor: colors.success,
+    borderRadius: BorderRadius.lg,
     minWidth: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 8,
-  },
+    marginLeft: Spacing.sm,
+  } as any,
   unreadText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
+    color: colors.white,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold as any,
+  } as any,
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
-  },
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
+  } as any,
   statusText: {
-    fontSize: 10,
-    fontWeight: '500',
-    marginLeft: 4,
-  },
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+    marginLeft: Spacing.xs,
+  } as any,
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
-  },
+  } as any,
   emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 16,
-  },
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: colors.textSecondary,
+    marginTop: Spacing.lg,
+  } as any,
   emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.textLight,
+    marginTop: Spacing.sm,
+  } as any,
   emptyListContent: {
     flex: 1,
-  },
+  } as any,
   chatContainer: {
     flex: 1,
-    backgroundColor: '#E9F0F7',
-    paddingTop: 10,
-  },
+    backgroundColor: colors.background,
+    paddingTop: Spacing.md,
+  } as any,
   chatHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#fff',
-    borderRadius: 45,
-    marginHorizontal: 10,
-    marginTop: 20,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-  },
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: BorderRadius['3xl'],
+    marginHorizontal: Spacing.md,
+    marginTop: Spacing.xl,
+    ...shadows.lg,
+  } as any,
   backButton: {
-    padding: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginLeft: 12,
-  },
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: colors.white + '20',
+    marginLeft: Spacing.md,
+  } as any,
   headerCenter: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginLeft: 8
-  },
+    marginLeft: Spacing.sm
+  } as any,
   headerIcons: {
     flexDirection: 'row',
-    gap: 6,
-    marginRight: 12,
-  },
+    gap: Spacing.sm,
+    marginRight: Spacing.md,
+  } as any,
   userInfo: {
     flex: 1,
-    marginLeft: 8,
-  },
+    marginLeft: Spacing.sm,
+  } as any,
   friendName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'black'
-  },
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: colors.textPrimary
+  } as any,
   avatarContainer: {
     position: 'relative',
   },
@@ -1055,107 +1062,99 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#009BFF',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as any,
   msgAvatarText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-  },
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: colors.white,
+  } as any,
   messageBubble: {
     maxWidth: '75%',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
+    borderRadius: BorderRadius['2xl'],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    ...shadows.sm,
+  } as any,
   myBubble: {
-    backgroundColor: '#2196F3',
-    borderBottomRightRadius: 4,
-  },
+    backgroundColor: colors.primary,
+    borderBottomRightRadius: BorderRadius.sm,
+  } as any,
   theirBubble: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 4,
-  },
+    backgroundColor: colors.surface,
+    borderBottomLeftRadius: BorderRadius.sm,
+  } as any,
   messageText: {
-    fontSize: 15,
-    lineHeight: 20,
-  },
+    fontSize: Typography.fontSize.sm,
+    lineHeight: Typography.lineHeight.normal,
+  } as any,
   myText: {
-    color: '#fff',
-  },
+    color: colors.white,
+  } as any,
   theirText: {
-    color: '#333',
-  },
+    color: colors.textPrimary,
+  } as any,
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: 4,
-  },
+    marginTop: Spacing.xs,
+  } as any,
   msgTime: {
-    fontSize: 10,
+    fontSize: Typography.fontSize.xs,
     textAlign: 'right',
-  },
+  } as any,
   myTime: {
-    color: 'rgba(255,255,255,0.7)',
-  },
+    color: colors.white + 'B3',
+  } as any,
   theirTime: {
-    color: '#999',
-  },
+    color: colors.textLight,
+  } as any,
   messageStatusContainer: {
-    marginLeft: 4,
-  },
+    marginLeft: Spacing.xs,
+  } as any,
   messageStatusIcon: {
-    marginLeft: 2,
-  },
+    marginLeft: Spacing.xs,
+  } as any,
   noMessagesContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
-  },
+  } as any,
   noMessagesText: {
-    fontSize: 14,
-    color: '#999',
-  },
+    fontSize: Typography.fontSize.sm,
+    color: colors.textLight,
+  } as any,
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 10,
-    borderRadius: 25,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 3,
-    // backgroundColor: 'red',
-  },
+    backgroundColor: colors.surface,
+    marginHorizontal: Spacing.md,
+    borderRadius: BorderRadius['3xl'],
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    ...shadows.sm,
+  } as any,
   textInput: {
     flex: 1,
-    fontSize: 15,
+    fontSize: Typography.fontSize.sm,
     maxHeight: 100,
-    paddingHorizontal: 10,
-    color: '#000',
-  },
+    paddingHorizontal: Spacing.md,
+    color: colors.textPrimary,
+  } as any,
   sendButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
+    backgroundColor: colors.primary,
+    borderRadius: BorderRadius['2xl'],
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as any,
   sendButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: colors.textSecondary,
     opacity: 0.6,
-  },
+  } as any,
 });

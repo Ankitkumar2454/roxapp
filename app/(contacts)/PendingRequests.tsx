@@ -1,11 +1,11 @@
 import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
+import { BorderRadius, Spacing, Typography } from "@/src/styles/commonStyles";
 import { PendingRequest } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from 'expo-router';
 import { useContext, useEffect, useState } from 'react';
 import {
@@ -24,8 +24,8 @@ import {
 
 export default function PendingRequestsScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(isDark, colors, shadows);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
@@ -68,8 +68,8 @@ export default function PendingRequestsScreen() {
     };
 
     const getRandomColor = () => {
-        const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
-        return colors[Math.floor(Math.random() * colors.length)];
+        const colorPalette = [colors.success, colors.info, colors.warning, colors.secondary, colors.error, colors.primary];
+        return colorPalette[Math.floor(Math.random() * colorPalette.length)];
     };
 
     const onRefresh = async () => {
@@ -196,40 +196,35 @@ export default function PendingRequestsScreen() {
     return (
         <View style={styles.container}>
             <StatusBar
-                barStyle={theme === "dark" ? "light-content" : "dark-content"}
-                backgroundColor={currentTheme.background}
+                barStyle={isDark ? "light-content" : "dark-content"}
+                backgroundColor={isDark ? colors.background : "transparent"}
+                translucent={!isDark}
             />
-            <LinearGradient
-                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            >
-                <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
+            <View style={[styles.header, { backgroundColor: isDark ? colors.primary : colors.white }]}>
+                <View style={styles.headerTop}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                        <Ionicons name="arrow-back" size={24} color={isDark ? colors.white : colors.textPrimary} />
+                    </TouchableOpacity>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={[styles.headerTitle, { color: isDark ? colors.white : colors.textPrimary }]}>Friend Requests</Text>
+                        <Text style={[styles.headerSubtitle, { color: isDark ? colors.white : colors.textSecondary }]}>
+                            {pendingRequests.length} {pendingRequests.length === 1 ? 'request' : 'requests'}
+                        </Text>
+                    </View>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity
+                            style={styles.headerButton}
+                            onPress={fetchPendingRequests}
+                        >
+                            <Ionicons name="refresh" size={22} color={isDark ? colors.white : colors.textPrimary} />
                         </TouchableOpacity>
-                        <View style={styles.headerTitleContainer}>
-                            <Text style={styles.headerTitle}>Friend Requests</Text>
-                            <Text style={styles.headerSubtitle}>
-                                {pendingRequests.length} {pendingRequests.length === 1 ? 'request' : 'requests'}
-                            </Text>
-                        </View>
-                        <View style={styles.headerActions}>
-                            <TouchableOpacity
-                                style={styles.headerButton}
-                                onPress={fetchPendingRequests}
-                            >
-                                <Ionicons name="refresh" size={22} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
                     </View>
                 </View>
-            </LinearGradient>
+            </View>
 
             {loading && pendingRequests.length === 0 ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#009BFF" />
+                    <ActivityIndicator size="large" color={colors.primary} />
                     <Text style={styles.loadingText}>Loading requests...</Text>
                 </View>
             ) : (
@@ -244,8 +239,8 @@ export default function PendingRequestsScreen() {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            colors={['#009BFF']}
-                            tintColor="#009BFF"
+                            colors={[colors.primary]}
+                            tintColor={colors.primary}
                         />
                     }
                 />
@@ -261,14 +256,14 @@ export default function PendingRequestsScreen() {
     );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
-    },
+        backgroundColor: colors.background,
+    } as any,
     header: {
-        paddingHorizontal: 16,
-        paddingBottom: 20,
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.xl,
         height: 120,
         justifyContent: "flex-end",
         alignItems: "center",
@@ -280,116 +275,111 @@ const createStyles = (theme: any) => StyleSheet.create({
         justifyContent: 'space-between',
     },
     backButton: {
-        marginRight: 16,
+        marginRight: Spacing.lg,
     },
     headerTitleContainer: {
         flex: 1,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#fff',
+        fontSize: Typography.fontSize.xl,
+        fontWeight: Typography.fontWeight.semibold as any,
     },
     headerSubtitle: {
-        fontSize: 13,
-        color: '#fff',
-        marginTop: 2,
+        fontSize: Typography.fontSize.sm,
+        marginTop: Spacing.xs,
     },
     headerActions: {
         flexDirection: 'row',
-        gap: 20,
+        gap: Spacing.xl,
     },
     headerButton: {
-        padding: 4,
+        padding: Spacing.xs,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
+        backgroundColor: colors.background,
+    } as any,
     loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: '#666',
+        marginTop: Spacing.md,
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
     },
     listContent: {
-        paddingVertical: 12,
+        paddingVertical: Spacing.md,
         flexGrow: 1,
     },
     requestItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        backgroundColor: '#fff',
+        paddingVertical: Spacing.lg,
+        paddingHorizontal: Spacing.lg,
+        backgroundColor: colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: '#F0F0F0',
-    },
+        borderBottomColor: colors.border,
+    } as any,
     avatar: {
         width: 60,
         height: 60,
-        borderRadius: 30,
-        marginRight: 12,
+        borderRadius: BorderRadius['3xl'],
+        marginRight: Spacing.md,
     },
     avatarPlaceholder: {
         width: 60,
         height: 60,
-        borderRadius: 30,
+        borderRadius: BorderRadius['3xl'],
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+        marginRight: Spacing.md,
     },
     avatarText: {
-        fontSize: 24,
-        fontWeight: '600',
-        color: '#fff',
+        fontSize: Typography.fontSize['2xl'],
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.white,
     },
     requestInfo: {
         flex: 1,
-        marginRight: 12,
+        marginRight: Spacing.md,
     },
     requestName: {
-        fontSize: 16,
-        color: theme.primaryText,
-        fontWeight: '600',
-        marginBottom: 4,
+        fontSize: Typography.fontSize.base,
+        color: colors.textPrimary,
+        fontWeight: Typography.fontWeight.semibold as any,
+        marginBottom: Spacing.xs,
     },
     requestUsername: {
-        fontSize: 14,
-        color: '#009BFF',
-        marginBottom: 4,
+        fontSize: Typography.fontSize.sm,
+        color: colors.primary,
+        marginBottom: Spacing.xs,
     },
     requestTime: {
-        fontSize: 12,
-        color: theme.secondaryText,
+        fontSize: Typography.fontSize.xs,
+        color: colors.textSecondary,
     },
     actionButtons: {
         flexDirection: 'row',
-        gap: 8,
+        gap: Spacing.sm,
     },
     acceptButton: {
         width: 44,
         height: 44,
-        borderRadius: 22,
-        backgroundColor: '#4CAF50',
+        borderRadius: BorderRadius['2xl'],
+        backgroundColor: colors.success,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#4CAF50',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 3,
-    },
+        ...shadows.sm,
+    } as any,
     rejectButton: {
         width: 44,
         height: 44,
-        borderRadius: 22,
-        backgroundColor: '#fff',
+        borderRadius: BorderRadius['2xl'],
+        backgroundColor: colors.surface,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1.5,
-        borderColor: '#FF3B30',
-    },
+        borderColor: colors.error,
+    } as any,
     emptyContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -397,16 +387,16 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingVertical: 100,
     },
     emptyText: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: theme.emptyStateText,
-        marginTop: 20,
+        fontSize: Typography.fontSize.xl,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.textPrimary,
+        marginTop: Spacing.xl,
     },
     emptySubtext: {
-        fontSize: 14,
-        color: theme.emptyStateSubtext,
-        marginTop: 8,
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
+        marginTop: Spacing.sm,
         textAlign: 'center',
-        paddingHorizontal: 40,
+        paddingHorizontal: Spacing['2xl'],
     },
 });

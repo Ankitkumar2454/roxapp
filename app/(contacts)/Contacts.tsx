@@ -2,8 +2,9 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
+import { BorderRadius, Spacing, Typography } from "@/src/styles/commonStyles";
 import { Contact, createContactResponse } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from "expo-linear-gradient";
@@ -45,8 +46,8 @@ export default function SelectContactScreen() {
     const [messageText, setMessageText] = useState('');
     const [pendingRequests, setPendingRequests] = useState<any>(0)
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(isDark, colors, shadows);
 
     const handleInitialSetup = async () => {
         const userdata = await Storage.getItem("user");
@@ -178,8 +179,8 @@ export default function SelectContactScreen() {
     }
 
     const getRandomColor = () => {
-        const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
-        return colors[Math.floor(Math.random() * colors.length)];
+        const colorPalette = [colors.success, colors.info, colors.warning, colors.secondary, colors.error, colors.primary];
+        return colorPalette[Math.floor(Math.random() * colorPalette.length)];
     }
 
     const onRefresh = async () => {
@@ -382,17 +383,17 @@ export default function SelectContactScreen() {
         <>
             {/* Search Bar */}
             <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color={currentTheme.iconColor} style={styles.searchIcon} />
+                <Ionicons name="search" size={20} color={colors.secondary} style={styles.searchIcon} />
                 <TextInput
                     style={styles.searchInput}
                     placeholder="Search contacts..."
-                    placeholderTextColor={currentTheme.placeholderText}
+                    placeholderTextColor={colors.textLight}
                     value={searchQuery}
                     onChangeText={setSearchQuery}
                 />
                 {searchQuery.length > 0 && (
                     <TouchableOpacity onPress={() => setSearchQuery('')}>
-                        <Ionicons name="close-circle" size={20} color="#999" />
+                        <Ionicons name="close-circle" size={20} color={colors.textLight} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -402,7 +403,7 @@ export default function SelectContactScreen() {
                     router.replace("/(GroupChats)/CreateGroupChats")
                 }}>
                     <View style={styles.actionIconContainer}>
-                        <Ionicons name="people" size={24} color="#007AFF" />
+                        <Ionicons name="people" size={24} color={colors.primary} />
                     </View>
                     <Text style={styles.actionText}>New group</Text>
                 </TouchableOpacity>
@@ -410,7 +411,7 @@ export default function SelectContactScreen() {
                 {currentUser?.role === "admin" && (
                     <TouchableOpacity style={styles.actionItem} onPress={handleAddContactPress}>
                         <View style={styles.actionIconContainer}>
-                            <Ionicons name="person-add" size={24} color="#007AFF" />
+                            <Ionicons name="person-add" size={24} color={colors.primary} />
                         </View>
                         <Text style={styles.actionText}>New contact</Text>
                         <Text style={styles.actionSubtext}> Add new user</Text>
@@ -419,7 +420,7 @@ export default function SelectContactScreen() {
 
                 <TouchableOpacity style={styles.actionItem}>
                     <View style={styles.actionIconContainer}>
-                        <Ionicons name="people" size={24} color="#007AFF" />
+                        <Ionicons name="people" size={24} color={colors.primary} />
                     </View>
                     <Text style={styles.actionText}>My Friends</Text>
                     <Text style={styles.actionSubtext}> View all friends</Text>
@@ -451,38 +452,34 @@ export default function SelectContactScreen() {
     return (
         <View style={styles.container}>
             <StatusBar
-                barStyle={theme === "dark" ? "light-content" : "dark-content"}
-                backgroundColor={currentTheme.background}
+                barStyle={isDark ? "light-content" : "dark-content"}
+                backgroundColor={isDark ? colors.background : "transparent"}
+                translucent={!isDark}
             />
 
-            <LinearGradient
-                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            >
-                <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/(chats)/Chat")}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <View style={styles.headerTitleContainer}>
-                            <Text style={styles.headerTitle}>Select contact</Text>
-                            <Text style={styles.headerSubtitle}>
-                                {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
-                            </Text>
-                        </View>
+            <View style={[styles.header, { backgroundColor: isDark ? colors.primary : colors.white }]}>
+                <View style={styles.headerTop}>
+                    <TouchableOpacity style={styles.backButton} onPress={() => router.replace("/(chats)/Chat")}>
+                        <Ionicons name="arrow-back" size={24} color={isDark ? colors.white : colors.textPrimary} />
+                    </TouchableOpacity>
+                    <View style={styles.headerTitleContainer}>
+                        <Text style={[styles.headerTitle, { color: isDark ? colors.white : colors.textPrimary }]}>Select contact</Text>
+                        <Text style={[styles.headerSubtitle, { color: isDark ? colors.white : colors.textSecondary }]}>
+                            {contacts.length} {contacts.length === 1 ? 'contact' : 'contacts'}
+                        </Text>
+                    </View>
                         <View style={styles.headerActions}>
                             <TouchableOpacity
                                 style={styles.headerButton}
                                 onPress={fetchAllUsers}
                             >
-                                <Ionicons name="refresh" size={22} color="#fff" />
+                                <Ionicons name="refresh" size={22} color={isDark ? colors.white : colors.textPrimary} />
                             </TouchableOpacity>
                             <View>
                                 <TouchableOpacity onPress={() => {
                                     router.replace("/(contacts)/PendingRequests")
                                 }}>
-                                    <Ionicons name="people-outline" size={22} color="#fff" />
+                                    <Ionicons name="people-outline" size={22} color={isDark ? colors.white : colors.textPrimary} />
                                     <View style={styles.adminBadge}>
                                         <Text style={styles.adminBadgeText}>{pendingRequests ? pendingRequests : 0}</Text>
                                     </View>
@@ -491,11 +488,10 @@ export default function SelectContactScreen() {
                         </View>
                     </View>
                 </View>
-            </LinearGradient>
 
             {loading && contacts.length === 0 ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color="#009BFF" />
+                    <ActivityIndicator size="large" color={colors.primary} />
                     <Text style={styles.loadingText}>Loading contacts...</Text>
                 </View>
             ) : (
@@ -512,8 +508,8 @@ export default function SelectContactScreen() {
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            colors={['#009BFF']}
-                            tintColor="#009BFF"
+                            colors={[colors.primary]}
+                            tintColor={colors.primary}
                         />
                     }
                 />
@@ -533,7 +529,7 @@ export default function SelectContactScreen() {
                     <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
                             <LinearGradient
-                                colors={[currentTheme.headerGradientStart, currentTheme.headerGradientEnd]}
+                                colors={[colors.primary, colors.primaryDark]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.modalHeader}
@@ -550,11 +546,11 @@ export default function SelectContactScreen() {
                                 <View style={styles.fieldGroup}>
                                     <Text style={styles.fieldLabel}>User Name</Text>
                                     <View style={styles.inputWrapper}>
-                                        <Ionicons name="person" size={20} color="#007AFF" style={styles.fieldIcon} />
+                                        <Ionicons name="person" size={20} color={colors.primary} style={styles.fieldIcon} />
                                         <TextInput
                                             style={styles.input}
                                             placeholder="Enter username"
-                                            placeholderTextColor={currentTheme.placeholderText}
+                                            placeholderTextColor={colors.textLight}
                                             value={formData.username}
                                             onChangeText={(text) => setFormData({ ...formData, username: text })}
                                         />
@@ -564,11 +560,11 @@ export default function SelectContactScreen() {
                                 <View style={styles.fieldGroup}>
                                     <Text style={styles.fieldLabel}>Full Name</Text>
                                     <View style={styles.inputWrapper}>
-                                        <Ionicons name="person-outline" size={20} color="#007AFF" style={styles.fieldIcon} />
+                                        <Ionicons name="person-outline" size={20} color={colors.primary} style={styles.fieldIcon} />
                                         <TextInput
                                             style={styles.input}
                                             placeholder="Enter full name"
-                                            placeholderTextColor={currentTheme.placeholderText}
+                                            placeholderTextColor={colors.textLight}
                                             value={formData.fullName}
                                             onChangeText={(text) => setFormData({ ...formData, fullName: text })}
                                         />
@@ -591,7 +587,7 @@ export default function SelectContactScreen() {
                                     disabled={loading}
                                 >
                                     <LinearGradient
-                                        colors={loading ? ["#999", "#666"] : [currentTheme.buttonGradientStart, currentTheme.buttonGradientEnd]}
+                                        colors={loading ? [colors.textSecondary, colors.textLight] : [colors.primary, colors.primaryDark]}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 1 }}
                                         style={styles.submitButtonGradient}
@@ -619,213 +615,208 @@ export default function SelectContactScreen() {
     );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: theme.background,
-    },
+        backgroundColor: colors.background,
+    } as any,
     header: {
-        paddingHorizontal: 16,
-        paddingBottom: 20,
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.xl,
         height: 120,
         justifyContent: "flex-end",
         alignItems: "center",
         display: "flex",
-        color: "white"
-    },
+        color: colors.white
+    } as any,
     headerTop: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
     },
     backButton: {
-        marginRight: 16,
+        marginRight: Spacing.lg,
     },
     headerTitleContainer: {
         flex: 1,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#fff',
+        fontSize: Typography.fontSize.xl,
+        fontWeight: Typography.fontWeight.semibold as any,
     },
     headerSubtitle: {
-        fontSize: 13,
-        color: '#fff',
-        marginTop: 2,
+        fontSize: Typography.fontSize.sm,
+        marginTop: Spacing.xs,
     },
     headerActions: {
         flexDirection: 'row',
-        gap: 20,
+        gap: Spacing.xl,
     },
     headerButton: {
-        padding: 4,
+        padding: Spacing.xs,
     },
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-         backgroundColor: theme.background,
-    },
+        backgroundColor: colors.background,
+    } as any,
     loadingText: {
-        marginTop: 12,
-        fontSize: 14,
-        color: '#666',
+        marginTop: Spacing.md,
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
     },
     listContent: {
-        paddingBottom: 20,
+        paddingBottom: Spacing.xl,
         flexGrow: 1,
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginHorizontal: 16,
-        marginVertical: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        backgroundColor: theme.searchBackground,
-        borderRadius: 12,
-        shadowColor: theme.shadowColor,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 3,
-    },
+        marginHorizontal: Spacing.lg,
+        marginVertical: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        backgroundColor: colors.surface,
+        borderRadius: BorderRadius.md,
+        ...shadows.sm,
+    } as any,
     searchIcon: {
-        marginRight: 8,
+        marginRight: Spacing.sm,
     },
     searchInput: {
         flex: 1,
-        fontSize: 16,
-        color: theme.searchInputText,
+        fontSize: Typography.fontSize.base,
+        color: colors.textPrimary,
     },
     actionSection: {
-        backgroundColor: theme.cardBackground,
-        marginVertical: 8,
-
-    },
+        backgroundColor: colors.surface,
+        marginVertical: Spacing.sm,
+    } as any,
     actionItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 16,
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
     },
     actionIconContainer: {
         width: 50,
         height: 50,
-        borderRadius: 25,
-        backgroundColor: '#F5F5F5',
+        borderRadius: BorderRadius['2xl'],
+        backgroundColor: colors.background,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+        marginRight: Spacing.md,
     },
     actionText: {
-        fontSize: 16,
-        color: theme.primaryText,
-        fontWeight: '500',
-        marginBottom: 2,
+        fontSize: Typography.fontSize.base,
+        color: colors.textPrimary,
+        fontWeight: Typography.fontWeight.medium as any,
+        marginBottom: Spacing.xs,
     },
     actionSubtext: {
-        fontSize: 13,
-        color: theme.secondaryText,
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
     },
     sectionHeader: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        backgroundColor: theme.searchBackground,
-    },
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
+        backgroundColor: colors.surface,
+    } as any,
     sectionHeaderText: {
-        fontSize: 13,
-        color: '#666',
-        fontWeight: '500',
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
+        fontWeight: Typography.fontWeight.medium as any,
     },
     contactItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        backgroundColor: theme.cardBackground,
-    },
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        backgroundColor: colors.surface,
+    } as any,
     avatar: {
         width: 50,
         height: 50,
-        borderRadius: 25,
-        marginRight: 12,
+        borderRadius: BorderRadius['2xl'],
+        marginRight: Spacing.md,
     },
     avatarPlaceholder: {
         width: 50,
         height: 50,
-        borderRadius: 25,
+        borderRadius: BorderRadius['2xl'],
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 12,
+        marginRight: Spacing.md,
     },
     avatarText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: theme.primaryText,
+        fontSize: Typography.fontSize.lg,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.white,
     },
     contactInfo: {
         flex: 1,
-        marginRight: 8,
+        marginRight: Spacing.sm,
     },
     nameRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 2,
+        marginBottom: Spacing.xs,
     },
     contactName: {
-        fontSize: 16,
-        color: theme.primaryText,
-        fontWeight: '600',
+        fontSize: Typography.fontSize.base,
+        color: colors.textPrimary,
+        fontWeight: Typography.fontWeight.semibold as any,
     },
     youTag: {
-        fontSize: 14,
-        color: '#009BFF',
-        fontWeight: '400',
+        fontSize: Typography.fontSize.sm,
+        color: colors.primary,
+        fontWeight: Typography.fontWeight.normal as any,
     },
     adminBadge: {
-        backgroundColor: '#FF9800',
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10,
-        marginLeft: 8,
+        backgroundColor: colors.warning,
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: Spacing.xs,
+        borderRadius: BorderRadius.sm,
+        marginLeft: Spacing.sm,
     },
     adminBadgeText: {
-        fontSize: 11,
-        color: '#fff',
-        fontWeight: '600',
+        fontSize: Typography.fontSize.xs,
+        color: colors.white,
+        fontWeight: Typography.fontWeight.semibold as any,
     },
     contactStatus: {
-        fontSize: 14,
-        color: theme.secondaryText,
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
     },
     contactUsername: {
-        fontSize: 13,
-        color: '#009BFF',
-        marginTop: 2,
+        fontSize: Typography.fontSize.sm,
+        color: colors.primary,
+        marginTop: Spacing.xs,
     },
     addFriendButton: {
         width: 40,
         height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F0F8FF',
+        borderRadius: BorderRadius['2xl'],
+        backgroundColor: colors.background,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#009BFF',
+        borderColor: colors.primary,
     },
     requestSentBadge: {
         width: 40,
         height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F0F8F0',
+        borderRadius: BorderRadius['2xl'],
+        backgroundColor: colors.background,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: '#4CAF50',
+        borderColor: colors.success,
     },
     separator: {
         height: 1,
-        backgroundColor: '#E0E0E0',
+        backgroundColor: colors.border,
         marginLeft: 78,
     },
     emptyContainer: {
@@ -835,15 +826,15 @@ const createStyles = (theme: any) => StyleSheet.create({
         paddingVertical: 60,
     },
     emptyText: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: theme.emptyStateText,
-        marginTop: 16,
+        fontSize: Typography.fontSize.lg,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.textPrimary,
+        marginTop: Spacing.lg,
     },
     emptySubtext: {
-        fontSize: 14,
-        color: theme.emptyStateSubtext,
-        marginTop: 8,
+        fontSize: Typography.fontSize.sm,
+        color: colors.textSecondary,
+        marginTop: Spacing.sm,
     },
     // Modal Styles
     modalContainer: {
@@ -855,16 +846,16 @@ const createStyles = (theme: any) => StyleSheet.create({
         justifyContent: 'flex-end',
     },
     modalContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        backgroundColor: colors.surface,
+        borderTopLeftRadius: BorderRadius['2xl'],
+        borderTopRightRadius: BorderRadius['2xl'],
         maxHeight: '80%',
-    },
+    } as any,
     modalHeader: {
-        paddingHorizontal: 16,
-        paddingVertical: 16,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.lg,
+        borderTopLeftRadius: BorderRadius['2xl'],
+        borderTopRightRadius: BorderRadius['2xl'],
     },
     modalHeaderTop: {
         flexDirection: 'row',
@@ -872,70 +863,70 @@ const createStyles = (theme: any) => StyleSheet.create({
         alignItems: 'center',
     },
     modalTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: '#fff',
+        fontSize: Typography.fontSize.xl,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.white,
     },
     formContainer: {
-        paddingHorizontal: 16,
-        paddingVertical: 24,
-        gap: 16,
-        backgroundColor: theme.containerBackground,
-    },
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing['2xl'],
+        gap: Spacing.lg,
+        backgroundColor: colors.background,
+    } as any,
     fieldGroup: {
-        marginBottom: 8,
+        marginBottom: Spacing.sm,
     },
     fieldLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: theme.secondaryText,
-        marginBottom: 8,
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.textSecondary,
+        marginBottom: Spacing.sm,
     },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1.5,
-        borderColor: theme.inputBorder,
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        backgroundColor: theme.cardBackground,
-    },
+        borderColor: colors.border,
+        borderRadius: BorderRadius.md,
+        paddingHorizontal: Spacing.md,
+        backgroundColor: colors.surface,
+    } as any,
     fieldIcon: {
-        marginRight: 10,
+        marginRight: Spacing.sm,
     },
     input: {
         flex: 1,
-        paddingVertical: 12,
-        fontSize: 16,
-        color: theme.inputText,
+        paddingVertical: Spacing.md,
+        fontSize: Typography.fontSize.base,
+        color: colors.textPrimary,
     },
     buttonContainer: {
         flexDirection: 'row',
-        gap: 12,
-        paddingHorizontal: 16,
-        paddingBottom: 20,
-        backgroundColor: theme.containerBackground,
-        borderTopColor: theme.inputBorder,
+        gap: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.xl,
+        backgroundColor: colors.background,
+        borderTopColor: colors.border,
         borderTopWidth: 2,
-    },
+    } as any,
     cancelButton: {
         flex: 1,
         borderWidth: 1,
-        borderColor: theme.inputBorder,
-        borderRadius: 12,
-        paddingVertical: 14,
+        borderColor: colors.border,
+        borderRadius: BorderRadius.md,
+        paddingVertical: Spacing.md,
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 3,
     },
     cancelButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: theme.secondaryText,
+        fontSize: Typography.fontSize.base,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.textSecondary,
     },
     submitButton: {
         flex: 1,
-        borderRadius: 12,
+        borderRadius: BorderRadius.md,
         overflow: 'hidden',
         marginTop: 3,
     },
@@ -944,13 +935,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     },
     submitButtonGradient: {
         flexDirection: 'row',
-        paddingVertical: 14,
+        paddingVertical: Spacing.md,
         alignItems: 'center',
         justifyContent: 'center',
     },
     submitButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#fff',
+        fontSize: Typography.fontSize.base,
+        fontWeight: Typography.fontWeight.semibold as any,
+        color: colors.white,
     },
 });

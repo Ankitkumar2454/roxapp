@@ -1,8 +1,9 @@
 import api from "@/api/axiosInstance";
 import ENDPOINTS from "@/api/endPoints";
 import GlobalMessage from "@/CustomComponents/message";
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
+import { BorderRadius, Spacing, Typography } from "@/src/styles/commonStyles";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
@@ -15,8 +16,8 @@ const screenHeight = Dimensions.get("window").height;
 
 export default function MPINResetScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(isDark, colors, shadows);
     const [newMPIN, setNewMPIN] = useState("");
     const [confirmMPIN, setConfirmMPIN] = useState("");
     const [loading, setLoading] = useState(false);
@@ -207,29 +208,29 @@ export default function MPINResetScreen() {
                             <Ionicons
                                 name={showConfirmMPIN ? "eye-off-outline" : "eye-outline"}
                                 size={22}
-                                color="#009BFF"
+                                color={colors.primary}
                             />
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.footerRow}>
                         <View style={styles.checkboxRow}>
-                            <Ionicons name="shield-checkmark" size={20} color="#009BFF" />
+                            <Ionicons name="shield-checkmark" size={20} color={colors.primary} />
                             <Text style={styles.securityText}>Secure & Encrypted</Text>
                         </View>
 
-                        <TouchableOpacity onPress={handleResetMPIN} style={{ borderRadius: 10, overflow: "hidden" }}>
+                        <TouchableOpacity onPress={handleResetMPIN} style={{ borderRadius: BorderRadius.lg, overflow: "hidden" }}>
                             <LinearGradient
-                                colors={["#009BFF", "#0066CC"]}
+                                colors={[colors.primary, colors.primaryDark]}
                                 start={{ x: 0, y: 0 }}
                                 end={{ x: 1, y: 1 }}
                                 style={styles.arrowBtn}
                             >
                                 <Animated.View style={!loading && { transform: [{ translateX: shakeAnim }] }}>
                                     {loading ? (
-                                        <ActivityIndicator size="small" color="#fff" style={{ marginLeft: 2 }} />
+                                        <ActivityIndicator size="small" color={colors.white} style={{ marginLeft: 2 }} />
                                     ) : (
-                                        <Ionicons name="checkmark" size={18} color="#fff" />
+                                        <Ionicons name="checkmark" size={18} color={colors.white} />
                                     )}
                                 </Animated.View>
                             </LinearGradient>
@@ -248,89 +249,84 @@ export default function MPINResetScreen() {
     );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
     card: {
-        backgroundColor: "#fff",
-        borderRadius: 20,
+        backgroundColor: colors.surface,
+        borderRadius: BorderRadius['2xl'],
         overflow: "hidden",
-        paddingBottom: 40,
+        paddingBottom: Spacing['4xl'],
         height: screenHeight
-    },
+    } as any,
     header: {
         height: screenHeight * 0.4,
         borderBottomLeftRadius: 0,
         borderBottomRightRadius: 180,
         alignItems: "flex-start",
         justifyContent: "flex-end",
-        paddingHorizontal: 25,
-        paddingBottom: 30,
+        paddingHorizontal: Spacing['2xl'],
+        paddingBottom: Spacing['3xl'],
         position: "relative",
-        shadowColor: "#347a98ff",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.25,
-        shadowRadius: 20,
-        elevation: 20,
-    },
+        ...shadows.xl,
+    } as any,
     loginText: {
-        fontSize: 38,
-        color: "#fff",
-        fontWeight: "300",
+        fontSize: Typography.fontSize['4xl'],
+        color: colors.white,
+        fontWeight: Typography.fontWeight.light as any,
         position: "absolute",
         top: 100,
-        left: 25
-    },
+        left: Spacing['2xl']
+    } as any,
     subtitle: {
-        fontSize: 30,
-        color: "#fff",
-        fontWeight: "200"
-    },
+        fontSize: Typography.fontSize['3xl'],
+        color: colors.white,
+        fontWeight: Typography.fontWeight.light as any
+    } as any,
     infoText: {
-        color: "#3e3939ff",
+        color: colors.textSecondary,
         textAlign: "left",
-        marginTop: 45,
-        marginHorizontal: 25,
-        fontSize: 14
-    },
+        marginTop: Spacing['4xl'],
+        marginHorizontal: Spacing['2xl'],
+        fontSize: Typography.fontSize.sm
+    } as any,
     inputRow: {
         flexDirection: "row",
         alignItems: "center",
         borderBottomWidth: 1.2,
-        borderColor: "#aaa",
-        marginHorizontal: 25,
-        marginTop: 25,
-        paddingBottom: 6
-    },
+        borderColor: colors.border,
+        marginHorizontal: Spacing['2xl'],
+        marginTop: Spacing['2xl'],
+        paddingBottom: Spacing.sm
+    } as any,
     input: {
         flex: 1,
-        color: "#000",
-        fontSize: 15
-    },
+        color: colors.textPrimary,
+        fontSize: Typography.fontSize.sm
+    } as any,
     iconContainer: {
-        paddingHorizontal: 6
-    },
+        paddingHorizontal: Spacing.sm
+    } as any,
     footerRow: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        marginHorizontal: 25,
-        marginTop: 25
-    },
+        marginHorizontal: Spacing['2xl'],
+        marginTop: Spacing['2xl']
+    } as any,
     checkboxRow: {
         flexDirection: "row",
         alignItems: "center"
-    },
+    } as any,
     securityText: {
-        marginLeft: 8,
-        color: "#009BFF",
-        fontSize: 13,
-        fontWeight: "500"
-    },
+        marginLeft: Spacing.sm,
+        color: colors.primary,
+        fontSize: Typography.fontSize.xs,
+        fontWeight: Typography.fontWeight.medium as any
+    } as any,
     arrowBtn: {
-        backgroundColor: "#52b5f7ff",
         width: 100,
         height: 50,
-        borderRadius: 10,
+        borderRadius: BorderRadius.lg,
         justifyContent: "center",
         alignItems: "center"
-    },
+    } as any,
 });

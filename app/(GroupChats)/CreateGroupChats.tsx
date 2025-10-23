@@ -2,7 +2,7 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import GlobalMessage from '@/CustomComponents/message';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
-import { darkTheme, lightTheme } from "@/src/constants/color";
+import { useTheme } from "@/src/hooks/useTheme";
 import { ThemeContext } from "@/src/services/ThemeContext";
 import { GroupData, Member } from '@/utils/types';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,8 +35,8 @@ interface Friend {
 
 export default function GroupInfoScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
-    const styles = createStyles(currentTheme);
+    const { isDark, colors, shadows } = useTheme();
+    const styles = createStyles(colors);
     const router = useRouter();
     const params = useLocalSearchParams();
     const groupId = params.groupId as string;
@@ -343,12 +343,12 @@ export default function GroupInfoScreen() {
                             disabled={togglingAdmin === item._id}
                         >
                             {togglingAdmin === item._id ? (
-                                <ActivityIndicator size="small" color="#009BFF" />
+                                <ActivityIndicator size="small" color={colors.primary} />
                             ) : (
                                 <Ionicons
                                     name={isAdmin ? "shield-checkmark" : "shield-outline"}
                                     size={20}
-                                    color={isAdmin ? "#FF9800" : "#009BFF"}
+                                    color={isAdmin ? colors.warning : colors.primary}
                                 />
                             )}
                         </TouchableOpacity>
@@ -359,9 +359,9 @@ export default function GroupInfoScreen() {
                             disabled={removingMember === item._id}
                         >
                             {removingMember === item._id ? (
-                                <ActivityIndicator size="small" color="#FF3B30" />
+                                <ActivityIndicator size="small" color={colors.error} />
                             ) : (
-                                <Ionicons name="remove-circle-outline" size={20} color="#FF3B30" />
+                                <Ionicons name="remove-circle-outline" size={20} color={colors.error} />
                             )}
                         </TouchableOpacity>
                     </View>
@@ -389,9 +389,9 @@ export default function GroupInfoScreen() {
                 <Text style={styles.friendUsername}>@{item.username}</Text>
             </View>
             {addingMember === item._id ? (
-                <ActivityIndicator size="small" color="#009BFF" />
+                <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-                <Ionicons name="add-circle" size={28} color="#009BFF" />
+                <Ionicons name="add-circle" size={28} color={colors.primary} />
             )}
         </TouchableOpacity>
     );
@@ -399,7 +399,7 @@ export default function GroupInfoScreen() {
     if (loading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#009BFF" />
+                <ActivityIndicator size="large" color={colors.primary} />
                 <Text style={styles.loadingText}>Loading group info...</Text>
             </View>
         );
@@ -408,7 +408,7 @@ export default function GroupInfoScreen() {
     if (!groupData) {
         return (
             <View style={styles.errorContainer}>
-                <Ionicons name="alert-circle-outline" size={64} color="#ccc" />
+                <Ionicons name="alert-circle-outline" size={64} color={colors.textSecondary} />
                 <Text style={styles.errorText}>Group not found</Text>
                 <TouchableOpacity
                     style={styles.backButton}
@@ -424,13 +424,13 @@ export default function GroupInfoScreen() {
         <View style={styles.container}>
             {/* Header */}
             <LinearGradient
-                colors={['#009BFF', '#0066CC']}
+                colors={[colors.primary, colors.primaryDark]}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.header}
             >
                 <TouchableOpacity onPress={() => router.replace("/(chats)/Groups")} style={styles.headerBackButton}>
-                    <Ionicons name="arrow-back" size={24} color="#fff" />
+                    <Ionicons name="arrow-back" size={24} color={colors.white} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Group Info</Text>
                 <View style={{ width: 24 }} />
@@ -443,8 +443,8 @@ export default function GroupInfoScreen() {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        colors={['#009BFF']}
-                        tintColor="#009BFF"
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
                     />
                 }
             >
@@ -467,7 +467,7 @@ export default function GroupInfoScreen() {
                 {groupData.description && (
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="information-circle" size={20} color="#009BFF" />
+                            <Ionicons name="information-circle" size={20} color={colors.primary} />
                             <Text style={styles.sectionTitle}>Description</Text>
                         </View>
                         <Text style={styles.descriptionText}>{groupData.description}</Text>
@@ -477,7 +477,7 @@ export default function GroupInfoScreen() {
                 {/* Created By */}
                 <View style={styles.section}>
                     <View style={styles.sectionHeader}>
-                        <Ionicons name="person" size={20} color="#009BFF" />
+                        <Ionicons name="person" size={20} color={colors.primary} />
                         <Text style={styles.sectionTitle}>Created By</Text>
                     </View>
                     <View style={styles.creatorInfo}>
@@ -496,7 +496,7 @@ export default function GroupInfoScreen() {
                 <View style={styles.section}>
                     <View style={styles.sectionHeaderRow}>
                         <View style={styles.sectionHeader}>
-                            <Ionicons name="people" size={20} color="#009BFF" />
+                            <Ionicons name="people" size={20} color={colors.primary} />
                             <Text style={styles.sectionTitle}>Members ({groupData.members.length})</Text>
                         </View>
                         {isUserAdmin() && (
@@ -507,7 +507,7 @@ export default function GroupInfoScreen() {
                                     fetchAvailableFriends();
                                 }}
                             >
-                                <Ionicons name="person-add" size={18} color="#009BFF" />
+                                <Ionicons name="person-add" size={18} color={colors.primary} />
                                 <Text style={styles.addMemberText}>Add</Text>
                             </TouchableOpacity>
                         )}
@@ -538,7 +538,7 @@ export default function GroupInfoScreen() {
                 {/* Admin Info */}
                 {isUserAdmin() && (
                     <View style={styles.adminInfoBox}>
-                        <Ionicons name="information-circle" size={20} color="#009BFF" />
+                        <Ionicons name="information-circle" size={20} color={colors.primary} />
                         <Text style={styles.adminInfoText}>
                             As an admin, you can add/remove members and manage other admins. The creator cannot be removed or demoted.
                         </Text>
@@ -555,13 +555,13 @@ export default function GroupInfoScreen() {
             >
                 <View style={styles.modalContainer}>
                     <LinearGradient
-                        colors={['#009BFF', '#0066CC']}
+                        colors={[colors.primary, colors.primaryDark]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
                         style={styles.modalHeader}
                     >
                         <TouchableOpacity onPress={() => setShowAddMembersModal(false)}>
-                            <Ionicons name="arrow-back" size={24} color="#fff" />
+                            <Ionicons name="arrow-back" size={24} color={colors.white} />
                         </TouchableOpacity>
                         <Text style={styles.modalTitle}>Add Members</Text>
                         <View style={{ width: 24 }} />
@@ -569,17 +569,17 @@ export default function GroupInfoScreen() {
 
                     {/* Search Bar */}
                     <View style={styles.searchContainer}>
-                        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                        <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
                         <TextInput
                             style={styles.searchInput}
                             placeholder="Search friends..."
-                              placeholderTextColor={currentTheme.placeholderText}
+                              placeholderTextColor={colors.textSecondary}
                             value={searchQuery}
                             onChangeText={setSearchQuery}
                         />
                         {searchQuery.length > 0 && (
                             <TouchableOpacity onPress={() => setSearchQuery('')}>
-                                <Ionicons name="close-circle" size={20} color="#999" />
+                                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -587,12 +587,12 @@ export default function GroupInfoScreen() {
                     {/* Friends List */}
                     {loadingFriends ? (
                         <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#009BFF" />
+                            <ActivityIndicator size="large" color={colors.primary} />
                             <Text style={styles.loadingText}>Loading friends...</Text>
                         </View>
                     ) : filteredFriends.length === 0 ? (
                         <View style={styles.emptyContainer}>
-                            <Ionicons name="people-outline" size={64} color="#ccc" />
+                            <Ionicons name="people-outline" size={64} color={colors.textSecondary} />
                             <Text style={styles.emptyText}>
                                 {searchQuery ? 'No friends found' : 'No friends available'}
                             </Text>

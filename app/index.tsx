@@ -1,3 +1,5 @@
+import { useTheme } from "@/src/hooks/useTheme";
+import { Spacing, Typography } from "@/src/styles/commonStyles";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Dimensions, StyleSheet, View } from "react-native";
@@ -10,6 +12,8 @@ const images = [
 ];
 
 export default function AnimatedSplashScreen({ onFinish } : any) {
+  const { isDark, colors } = useTheme();
+  const styles = createStyles(isDark, colors);
   const [index, setIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -56,13 +60,13 @@ export default function AnimatedSplashScreen({ onFinish } : any) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (isDark: boolean, colors: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "white",
+    backgroundColor: colors.background,
     alignItems: "center",
     justifyContent: "center",
-  },
+  } as any,
   logo: {
     width: width * 0.4,
     height: height * 0.2,
@@ -73,20 +77,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   title: {
-    fontSize: 28,
-    fontWeight: "700",
-    color: "#0078D7",
-    marginTop: 10,
-  },
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: colors.primary,
+    marginTop: Spacing.sm,
+  } as any,
   subtitle: {
-    color: "#0078D7",
+    color: colors.primary,
     textAlign: "center",
-    marginTop: 8,
-    fontSize: 16,
+    marginTop: Spacing.sm,
+    fontSize: Typography.fontSize.base,
   },
   version: {
-    color: "#8c8c8c",
-    marginTop: 25,
-    fontSize: 12,
+    color: colors.textLight,
+    marginTop: Spacing['2xl'],
+    fontSize: Typography.fontSize.xs,
   },
 });
