@@ -126,7 +126,7 @@ export default function ChatsLayout() {
                     },
                     headerLeft: () => (
                         <View style={styles.headerLeft}>
-                            <Ionicons name="chatbubble-ellipses" size={24} color={currentTheme.headerText} />
+                            <Ionicons name="chatbubble-ellipses" size={25} color={currentTheme.headerText} />
                             <Text style={styles.headerTitle}>RoXX</Text>
                         </View>
                     ),

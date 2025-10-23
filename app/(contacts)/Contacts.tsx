@@ -476,13 +476,13 @@ export default function SelectContactScreen() {
                                 style={styles.headerButton}
                                 onPress={fetchAllUsers}
                             >
-                                <Ionicons name="refresh" size={22} color="#fff" />
+                                <Ionicons name="refresh" size={25} color="#fff" />
                             </TouchableOpacity>
                             <View>
                                 <TouchableOpacity onPress={() => {
                                     router.replace("/(contacts)/PendingRequests")
                                 }}>
-                                    <Ionicons name="people-outline" size={22} color="#fff" />
+                                    <Ionicons name="people-outline" size={25} color="#fff" />
                                     <View style={styles.adminBadge}>
                                         <Text style={styles.adminBadgeText}>{pendingRequests ? pendingRequests : 0}</Text>
                                     </View>
