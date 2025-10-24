@@ -55,8 +55,6 @@ export default function ChatScreen() {
   const fetchChatPartners = async () => {
     try {
       setLoading(true);
-    
-
       const response = await api.get(`${ENDPOINTS.users.all_chats}`);
       console.log("Fetched chat partners:", response.data);
 
@@ -66,19 +64,19 @@ export default function ChatScreen() {
             const date = new Date(timestamp);
             const now = new Date();
             const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-            
+
             if (diffInHours < 24) {
-              return date.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
+              return date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
                 minute: '2-digit',
-                hour12: true 
+                hour12: true
               });
             } else if (diffInHours < 168) { // 7 days
               return date.toLocaleDateString('en-US', { weekday: 'short' });
             } else {
-              return date.toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric' 
+              return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
               });
             }
           };
@@ -216,21 +214,21 @@ export default function ChatScreen() {
           />
           {/* Online Status Indicator */}
           <View style={[
-            styles.onlineIndicator, 
+            styles.onlineIndicator,
             { backgroundColor: item.isOnline ? colors.success : colors.textSecondary }
           ]} />
-          
+
           {/* Message Type Indicator */}
           {messageType !== 'text' && (
             <View style={styles.messageTypeIndicator}>
-              <Ionicons 
+              <Ionicons
                 name={
                   messageType === 'image' ? 'image' :
-                  messageType === 'audio' ? 'musical-notes' :
-                  messageType === 'document' ? 'document-text' : 'chatbubble'
-                } 
-                size={12} 
-                color={colors.textLight} 
+                    messageType === 'audio' ? 'musical-notes' :
+                      messageType === 'document' ? 'document-text' : 'chatbubble'
+                }
+                size={12}
+                color={colors.textLight}
               />
             </View>
           )}
@@ -253,24 +251,24 @@ export default function ChatScreen() {
               )}
             </View>
           </View>
-          
+
           <View style={styles.messageRow}>
             <View style={styles.messageContainer}>
               <Text style={styles.message} numberOfLines={1}>
                 {messageType === 'image' ? '📷 Photo' :
-                 messageType === 'audio' ? '🎵 Audio' :
-                 messageType === 'document' ? '📄 Document' :
-                 item.lastMessage}
+                  messageType === 'audio' ? '🎵 Audio' :
+                    messageType === 'document' ? '📄 Document' :
+                      item.lastMessage}
               </Text>
               {item.unread && item.unreadCount > 0 && (
                 <View style={styles.unreadIndicator} />
               )}
             </View>
             <View style={styles.statusContainer}>
-              <Ionicons 
-                name={getStatusIcon(item.lastMessageStatus)} 
-                size={16} 
-                color={getStatusColor(item.lastMessageStatus)} 
+              <Ionicons
+                name={getStatusIcon(item.lastMessageStatus)}
+                size={16}
+                color={getStatusColor(item.lastMessageStatus)}
               />
             </View>
           </View>
