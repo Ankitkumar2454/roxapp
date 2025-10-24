@@ -28,7 +28,7 @@ export default function GroupsScreen() {
   };
 
   const handleCreateGroup = () => {
-    router.push("/(GroupChats)/CreateGroupChats");
+    router.push("/(contacts)/Contacts");
   };
 
   const getRandomColor = () => {

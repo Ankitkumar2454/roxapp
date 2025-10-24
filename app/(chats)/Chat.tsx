@@ -24,7 +24,7 @@ interface ChatPartner {
   unread: boolean;
   unreadCount: number;
   lastMessageStatus: 'sent' | 'delivered' | 'read';
-  messageType: 'text' | 'image' | 'audio' | 'document';
+  messageType: 'text' | 'image' | 'audio' | 'document' | 'video';
   isOnline: boolean;
   lastSeen?: string;
 }
@@ -56,7 +56,7 @@ export default function ChatScreen() {
     try {
       setLoading(true);
       const response = await api.get(`${ENDPOINTS.users.all_chats}`);
-      console.log("Fetched chat partners:", response.data);
+      console.log("Fetched chat partners:", response.data.data.chatPartners);
 
       if (response.data.success && response.data.data) {
         const transformedChatPartners: ChatPartner[] = response.data.data.chatPartners.map((partner: any) => {
@@ -95,6 +95,15 @@ export default function ChatScreen() {
               case 'image': return 'image';
               case 'audio': return 'audio';
               case 'document': return 'document';
+              case 'video': return 'video';
+              case 'voice': return 'voice';
+              case 'location': return 'location';
+              case 'contact': return 'contact';
+              case 'sticker': return 'sticker';
+              case 'link': return 'link';
+              case 'event': return 'event';
+              case 'poll': return 'poll';
+              case 'file': return 'file';
               default: return 'text';
             }
           };
@@ -199,6 +208,7 @@ export default function ChatScreen() {
         default: return colors.textSecondary;
       }
     };
+    console.log(item, "item.lastMessage")
 
     return (
       <TouchableOpacity
@@ -255,14 +265,13 @@ export default function ChatScreen() {
           <View style={styles.messageRow}>
             <View style={styles.messageContainer}>
               <Text style={styles.message} numberOfLines={1}>
+                {/* {console.log(item.lastMessage, "item.lastMessage")} */}
                 {messageType === 'image' ? '📷 Photo' :
                   messageType === 'audio' ? '🎵 Audio' :
+                    messageType === 'video' ? '📹 Video' :
                     messageType === 'document' ? '📄 Document' :
-                      item.lastMessage}
+                  item.lastMessage}
               </Text>
-              {item.unread && item.unreadCount > 0 && (
-                <View style={styles.unreadIndicator} />
-              )}
             </View>
             <View style={styles.statusContainer}>
               <Ionicons

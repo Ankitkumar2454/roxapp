@@ -2,7 +2,7 @@ import api from '@/api/axiosInstance';
 import ENDPOINTS from '@/api/endPoints';
 import { Storage } from '@/hooks/useLocalAsyncStorage';
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { Audio, AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,7 +10,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
 
-import { useTheme } from "@/src/hooks/useTheme";
+import { darkTheme, lightTheme } from "@/src/constants/color";
 import { ThemeContext } from "@/src/services/ThemeContext";
 import { useContext, useEffect, useRef, useState } from 'react';
 import {
@@ -71,8 +71,8 @@ const SOCKET_URL = ENDPOINTS.socket;
 
 export default function ChatMessageScreen() {
     const { theme, toggleTheme } = useContext(ThemeContext);
-    const { isDark, colors, shadows } = useTheme();
-    const styles = createStyles(isDark, colors, shadows);
+    const currentTheme = theme === 'dark' ? darkTheme : lightTheme;
+    const styles = createStyles(currentTheme);
     const router = useRouter();
     const params = useLocalSearchParams();
     const [message, setMessage] = useState('');
@@ -113,6 +113,9 @@ export default function ChatMessageScreen() {
     } | null>(null);
 
     // Audio recording states
+    const [activeAudioId, setActiveAudioId] = useState<string | null>(null);
+    const [isLoadingAudio, setIsLoadingAudio] = useState(false);
+
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [recordingUri, setRecordingUri] = useState<string | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
@@ -128,6 +131,39 @@ export default function ChatMessageScreen() {
     const recordingIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
     const playbackStatusRef = useRef<Audio.Sound | null>(null);
 
+    // 🎥 Video playback state
+    const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+    const [activeVideoId, setActiveVideoId] = useState<string | null>(null);
+    const videoRefs = useRef<Record<string, Video | null>>({});
+
+
+
+    const toggleVideoPlay = async (id: string) => {
+        const currentVideo = videoRefs.current[id];
+
+        if (!currentVideo) return;
+
+        // Pause currently active video if it's different from the one being played
+        if (activeVideoId && activeVideoId !== id) {
+            const prevVideo = videoRefs.current[activeVideoId];
+            await prevVideo?.pauseAsync();
+        }
+
+        const status = (await currentVideo.getStatusAsync()) as AVPlaybackStatus;
+
+        if (status.isLoaded) {
+            if (status.isPlaying) {
+                await currentVideo.pauseAsync();
+                setActiveVideoId(null);
+            } else {
+                await currentVideo.playAsync();
+                setActiveVideoId(id);
+            }
+        }
+    };
+    
+    
+    
     const startRingtone = async () => {
         try {
             await Audio.setAudioModeAsync({
@@ -175,7 +211,6 @@ export default function ChatMessageScreen() {
         return colors[Math.floor(Math.random() * colors.length)];
     };
 
-    // Generate consistent color based on name hash
     const getConsistentColor = (name: string): string => {
         const colors = ['#4CAF50', '#2196F3', '#FF9800', '#9C27B0', '#F44336', '#00BCD4'];
         let hash = 0;
@@ -185,7 +220,6 @@ export default function ChatMessageScreen() {
         return colors[Math.abs(hash) % colors.length];
     };
 
-    // Utility function to handle forwarded message text
     const getForwardText = (originalText: string): string => {
         // Check if message is already forwarded
         if (originalText.startsWith('Forwarded: ')) {
@@ -220,6 +254,15 @@ export default function ChatMessageScreen() {
             }
         } catch (error) {
             console.error('Error fetching messages:', error);
+        }
+    };
+
+    const markAllChatAsRead = async (friendId: string) => {
+        try {
+            const response = await api.put(`${ENDPOINTS.chat.markAllAsRead(friendId)}`);
+            console.log(response.data, "response.data.data.result.messages");
+        } catch (error) {
+            console.error('Error marking chat as read:', error);
         }
     };
 
@@ -387,21 +430,18 @@ export default function ChatMessageScreen() {
         }));
     };
 
-
     const markMessagesAsRead = async () => {
         try {
-            // Get unread messages from the other user
             const unreadMessages = messages.filter(msg =>
                 msg.senderId !== currentUserId && !msg.isRead
             );
 
             if (unreadMessages.length > 0 && socketRef.current) {
-                // Emit read receipt for each unread message
                 unreadMessages.forEach(msg => {
                     if (msg._id) {
                         socketRef.current?.emit('message:read', {
                             messageId: msg._id,
-                            receiverId: friendId,
+                            senderId: friendId,
                         });
                     }
                 });
@@ -416,32 +456,6 @@ export default function ChatMessageScreen() {
             }
         } catch (error) {
             console.error('Error marking messages as read:', error);
-        }
-    };
-
-    const markAllMessagesAsRead = async () => {
-        try {
-            if (friendId && currentUserId) {
-                console.log('Marking all messages as read for conversation with:', friendId);
-                
-                const response = await api.put(ENDPOINTS.chat.markAllAsRead(friendId));
-
-                if (response.data.success) {
-                    console.log('All messages marked as read successfully');
-                    
-                    // Update local state to mark all messages as read
-                    setMessages(prev => prev.map(msg => {
-                        if (msg.senderId !== currentUserId) {
-                            return { ...msg, isRead: true };
-                        }
-                        return msg;
-                    }));
-                } else {
-                    console.log('Failed to mark messages as read:', response.data.message);
-                }
-            }
-        } catch (error) {
-            console.error('Error marking all messages as read:', error);
         }
     };
 
@@ -589,7 +603,6 @@ export default function ChatMessageScreen() {
 
     const startRecording = async () => {
         try {
-            // Request audio permissions
             const permissionResponse = await Audio.requestPermissionsAsync();
             if (permissionResponse.status !== 'granted') {
                 Alert.alert('Permission Required', 'Please grant microphone permission to record voice messages.');
@@ -728,15 +741,92 @@ export default function ChatMessageScreen() {
         }
     };
 
+    const playAudio = async (url: string, id: string) => {
+        try {
+            if (isLoadingAudio) return;
+
+            setIsLoadingAudio(true);
+            if (sound && activeAudioId && activeAudioId !== id) {
+                const status = await sound.getStatusAsync();
+                if (status.isLoaded) {
+                    await sound.stopAsync();
+                    await sound.unloadAsync();
+                }
+                setSound(null);
+                setActiveAudioId(null);
+                setIsPlaying(false);
+            }
+
+            // If same audio tapped and currently playing → pause
+            if (sound && activeAudioId === id && isPlaying) {
+                await sound.pauseAsync();
+                setIsPlaying(false);
+                setIsLoadingAudio(false);
+                return;
+            }
+
+            // If same audio tapped and currently paused → resume
+            if (sound && activeAudioId === id && !isPlaying) {
+                await sound.playAsync();
+                setIsPlaying(true);
+                setIsLoadingAudio(false);
+                return;
+            }
+
+            // Create a new sound (fresh play)
+            const { sound: newSound } = await Audio.Sound.createAsync(
+                { uri: url },
+                { shouldPlay: false }
+            );
+
+            setSound(newSound);
+            setActiveAudioId(id);
+
+            // Wait until fully loaded
+            let status = await newSound.getStatusAsync();
+            let tries = 0;
+            while (!status.isLoaded && tries < 5) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+                status = await newSound.getStatusAsync();
+                tries++;
+            }
+
+            // Play now safely
+            await newSound.playAsync();
+            setIsPlaying(true);
+
+            // Update playback status
+            newSound.setOnPlaybackStatusUpdate(async (status) => {
+                if (!status.isLoaded) return;
+
+                setPlaybackPosition(status.positionMillis);
+                setPlaybackDuration(status.durationMillis || 0);
+                setIsPlaying(status.isPlaying);
+
+                if (status.didJustFinish) {
+                    setIsPlaying(false);
+                    setActiveAudioId(null);
+                    await newSound.unloadAsync();
+                    setSound(null);
+                }
+            });
+        } catch (err) {
+            console.error("Audio playback error:", err);
+            setIsPlaying(false);
+            setActiveAudioId(null);
+        } finally {
+            setIsLoadingAudio(false);
+        }
+    };
+
     const handleSendVoice = async (voiceUrl: string, duration: number) => {
         try {
             console.log('Starting voice upload process...', voiceUrl, duration);
-            
-            // Upload the voice file to server first
+
             const uploadedUrl = await uploadMedia(voiceUrl, 'audio', `voice_${Date.now()}.m4a`);
-            
+
             console.log('Voice uploaded successfully:', uploadedUrl);
-            
+
             const tempId = Date.now().toString();
             const newMessage: Message = {
                 id: tempId,
@@ -768,7 +858,6 @@ export default function ChatMessageScreen() {
         }
     };
 
-    // Image and Video Upload Functions
     const pickImage = async () => {
         try {
             const result = await ImagePicker.launchImageLibraryAsync({
@@ -824,9 +913,10 @@ export default function ChatMessageScreen() {
                 type: ['audio/*'],
                 copyToCacheDirectory: true,
             });
-
             if (!result.canceled && result.assets[0]) {
                 const asset = result.assets[0];
+                console.log(asset.size, "audio size")
+
                 setSelectedMedia({
                     uri: asset.uri,
                     type: 'audio',
@@ -864,14 +954,51 @@ export default function ChatMessageScreen() {
         }
     };
 
+    const compressAudio = async (uri: string) => {
+        try {
+            const AUDIO_SIZE_LIMIT_MB = 2;
+            const info = await FileSystem.getInfoAsync(uri);
+
+            if (!info.exists) {
+                console.log('File does not exist:', uri);
+                return uri;
+            }
+
+            const originalSizeMB = info.size / 1024 / 1024;
+            console.log('Original size (MB):', originalSizeMB);
+            if (originalSizeMB <= AUDIO_SIZE_LIMIT_MB) {
+                console.log('Small file — skipping compression.');
+                return uri;
+            }
+
+            const compressedUri = FileSystem.cacheDirectory + 'compressed_audio.m4a';
+            await FileSystem.copyAsync({ from: uri, to: compressedUri });
+
+            const compressedInfo = await FileSystem.getInfoAsync(compressedUri);
+            if (compressedInfo.exists) {
+                const compressedSizeMB = compressedInfo.size / 1024 / 1024;
+                console.log('Compressed size (MB):', compressedSizeMB);
+            }
+
+            return compressedUri;
+        } catch (error) {
+            console.log('Audio compression error:', error);
+            return uri; // fallback
+        }
+    };
+
     const uploadMedia = async (mediaUri: string, mediaType: 'image' | 'video' | 'audio' | 'document', fileName: string) => {
         try {
             setIsUploading(true);
             setUploadProgress(0);
+            if (!selectedMedia) return;
 
             // Create FormData for file upload
+            let uploadUri = mediaUri;
+            if (mediaType === 'audio') {
+                uploadUri = await compressAudio(mediaUri);
+            }
 
-            console.log(mediaType, "mediaTypeRand")
             const formData = new FormData();
 
             formData.append('folder', mediaType === 'image' ? 'images' :
@@ -895,7 +1022,7 @@ export default function ChatMessageScreen() {
                     case 'mp4': return 'video/mp4';
                     case 'mov': return 'video/quicktime';
                     case 'avi': return 'video/x-msvideo';
-                    case 'mp3': return 'audio/mpeg';
+                    case 'mp3': return 'audio/mp3';
                     case 'wav': return 'audio/wav';
                     case 'm4a': return 'audio/mp3';
                     default: return mediaType === 'image' ? 'image/jpeg' :
@@ -903,13 +1030,13 @@ export default function ChatMessageScreen() {
                             mediaType === 'audio' ? 'audio/mpeg' : 'application/octet-stream';
                 }
             };
-
+            console.log(mediaUri, 'mediaUri')
             formData.append('files', {
-                uri: mediaUri,
+                uri: uploadUri,
                 type: getMimeType(fileName, mediaType),
                 name: fileName,
             } as any);
-
+            console.log('formData', formData);
             // Upload file to server
             console.log('Uploading media to server', ENDPOINTS.upload.documents);
             const response = await api.post(ENDPOINTS.upload.documents, formData, {
@@ -917,11 +1044,15 @@ export default function ChatMessageScreen() {
                     'Content-Type': 'multipart/form-data',
                 },
                 onUploadProgress: (progressEvent) => {
-                    const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    // const progress = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1));
+                    const progress = Math.min(
+                        99,
+                        Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1))
+                    );
                     setUploadProgress(progress);
                 },
             });
-
+            setUploadProgress(100);
             console.log('response', response.data);
 
             if (response.data.success && response.data.data.files[0]) {
@@ -1044,17 +1175,17 @@ export default function ChatMessageScreen() {
     const downloadPDF = async (pdfUrl: string, fileName: string) => {
         try {
             setIsDownloadingPDF(true);
-            
+
             // Create a temporary file path
             const fileUri = FileSystem.documentDirectory + fileName;
-            
+
             // Download the PDF
             const downloadResult = await FileSystem.downloadAsync(pdfUrl, fileUri);
-            
+
             if (downloadResult.status === 200) {
                 // Check if sharing is available
                 const isAvailable = await Sharing.isAvailableAsync();
-                
+
                 if (isAvailable) {
                     // Share the downloaded file
                     await Sharing.shareAsync(downloadResult.uri, {
@@ -1077,7 +1208,7 @@ export default function ChatMessageScreen() {
 
     const handleDocumentAction = (documentUrl: string, fileName: string) => {
         const extension = fileName.toLowerCase().split('.').pop();
-        
+
         if (extension === 'pdf') {
             downloadAndSharePDF(documentUrl, fileName);
         } else {
@@ -1086,7 +1217,6 @@ export default function ChatMessageScreen() {
         }
     };
 
-    // Animated Typing Indicator Component
     const AnimatedTypingIndicator = () => {
         const dot1Anim = useRef(new Animated.Value(0.3)).current;
         const dot2Anim = useRef(new Animated.Value(0.3)).current;
@@ -1199,14 +1329,12 @@ export default function ChatMessageScreen() {
         );
     };
 
-    // Clear input when typing indicator is shown
     useEffect(() => {
         if (isTyping) {
             setMessage('');
         }
     }, [isTyping]);
 
-    // Auto-scroll when typing indicator appears
     useEffect(() => {
         if (isTyping) {
             setTimeout(() => {
@@ -1217,6 +1345,7 @@ export default function ChatMessageScreen() {
 
     useEffect(() => {
         initializeSocket();
+        markAllChatAsRead(friendId);
         return () => {
             if (socketRef.current) {
                 socketRef.current.disconnect();
@@ -1234,19 +1363,10 @@ export default function ChatMessageScreen() {
         };
     }, [friendId]);
 
-    // Mark all messages as read when opening the chat
-    useEffect(() => {
-        if (friendId && currentUserId && !isLoading) {
-            // Call API to mark all messages as read when opening the chat
-            markAllMessagesAsRead();
-        }
-    }, [friendId, currentUserId, isLoading]);
-
-    // Mark messages as read when component mounts or messages change
     useEffect(() => {
         if (messages.length > 0 && currentUserId && !isLoading) {
             // Only mark as read if there are actually unread messages
-            const hasUnreadMessages = messages.some(msg => 
+            const hasUnreadMessages = messages.some(msg =>
                 msg.senderId !== currentUserId && !msg.isRead
             );
             if (hasUnreadMessages) {
@@ -1255,7 +1375,6 @@ export default function ChatMessageScreen() {
         }
     }, [messages, currentUserId, isLoading]);
 
-    // Handle forwarded message
     useEffect(() => {
         if (forwardMessage && socketRef.current && !isLoading && forwardedMessageRef.current !== forwardMessage) {
             forwardedMessageRef.current = forwardMessage;
@@ -1295,8 +1414,8 @@ export default function ChatMessageScreen() {
     if (isLoading) {
         return (
             <SafeAreaView style={styles.loadingWrapper}>
-                <ActivityIndicator size="large" color={colors.primary} />
-                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading chat...</Text>
+                <ActivityIndicator size="large" color="#00A8E8" />
+                <Text style={{ color: '#777', marginTop: 10 }}>Loading chat...</Text>
             </SafeAreaView>
         );
     }
@@ -1305,7 +1424,7 @@ export default function ChatMessageScreen() {
         <SafeAreaView style={styles.container}>
             <StatusBar
                 barStyle={theme === "dark" ? "light-content" : "dark-content"}
-                backgroundColor={colors.background}
+                backgroundColor={currentTheme.background}
             />
 
             {/* Header */}
@@ -1349,7 +1468,7 @@ export default function ChatMessageScreen() {
                             }
                         }}
                     >
-                        <Ionicons name="videocam-outline" size={22} color="black" />
+                        <Ionicons name="videocam-outline" size={25} color={currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={styles.headerIconButton}
@@ -1367,10 +1486,10 @@ export default function ChatMessageScreen() {
                             }
                         }}
                     >
-                        <Ionicons name="call-outline" size={22} color="black" />
+                        <Ionicons name="call-outline" size={25} color={currentTheme.primaryText} />
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.headerIconButton} activeOpacity={0.7}>
-                        <Ionicons name="ellipsis-vertical" size={20} color="black" />
+                        <Ionicons name="ellipsis-vertical" size={25} color={currentTheme.primaryText} />
                     </TouchableOpacity>
                 </View>
             </View>
@@ -1392,7 +1511,7 @@ export default function ChatMessageScreen() {
                     >
                         {messages.map((msg) => {
                             const isMe = msg.senderId === currentUserId;
-                            console.log('MSG', msg);
+                            // console.log('MSG', msg);
                             return (
                                 <TouchableOpacity
                                     key={msg.id}
@@ -1410,7 +1529,7 @@ export default function ChatMessageScreen() {
                                                     resizeMode="cover"
                                                 />
                                                 <View style={styles.imageOverlay}>
-                                                    <Ionicons name="image" size={16} color={colors.white} />
+                                                    <Ionicons name="image" size={16} color="#fff" />
                                                 </View>
                                             </View>
                                         ) : msg.messageType === 'voice' ? (
@@ -1428,7 +1547,7 @@ export default function ChatMessageScreen() {
                                                     <Ionicons
                                                         name={isPlaying && sound ? "pause" : "play"}
                                                         size={20}
-                                                        color={isMe ? colors.white : colors.primary}
+                                                        color={isMe ? "#fff" : "#2196F3"}
                                                     />
                                                 </TouchableOpacity>
                                                 <View style={styles.voiceWaveform}>
@@ -1443,16 +1562,36 @@ export default function ChatMessageScreen() {
                                                 </Text>
                                             </View>
                                         ) : (msg.messageType === 'video' || (msg.text && msg.text.match(/\.(mp4|mov|avi|mkv)$/i))) ? (
+
                                             <View style={styles.videoMessageContainer}>
-                                                <Image
-                                                    source={{ uri: msg.mediaThumbnail || msg.mediaUrl || msg.text }}
-                                                    style={styles.messageVideo}
-                                                    resizeMode="cover"
-                                                />
-                                                <View style={styles.videoOverlay}>
-                                                    <Ionicons name="play" size={24} color={colors.white} />
-                                                </View>
+                                                <TouchableOpacity
+                                                    onPress={() => toggleVideoPlay(msg._id || msg.id)}
+                                                    activeOpacity={0.9}
+                                                >
+                                                    <Video
+                                                        ref={(ref) => {
+                                                            videoRefs.current[msg._id || msg.id] = ref ?? null;
+                                                        }}
+                                                        source={{ uri: msg.mediaUrl || msg.text }}
+                                                        style={styles.messageVideo}
+                                                        resizeMode={ResizeMode.COVER}
+                                                        useNativeControls={false}
+                                                        shouldPlay={false}
+                                                        isLooping
+                                                    />
+                                                    <View style={styles.videoOverlay}>
+                                                        <Ionicons
+                                                            name={activeVideoId === (msg._id || msg.id) ? 'pause-circle' : 'play-circle'}
+                                                            size={48}
+                                                            color="#fff"
+                                                        />
+                                                    </View>
+                                                </TouchableOpacity>
                                             </View>
+
+
+
+
                                         ) : (msg.messageType === 'audio' || (msg.text && msg.text.match(/\.(mp3|wav|m4a|aac|ogg)$/i))) ? (
                                             <View style={styles.audioMessageContainer}>
                                                 <TouchableOpacity
@@ -1461,16 +1600,25 @@ export default function ChatMessageScreen() {
                                                         // Use content field (S3 URL) for playback, fallback to mediaUrl or text
                                                         const audioUrl = msg.content || msg.mediaUrl || msg.text;
                                                         if (audioUrl) {
-                                                            playVoiceMessage(audioUrl);
+                                                            playAudio(audioUrl, msg._id || msg.id); // pass message ID
                                                         }
                                                     }}
                                                 >
-                                                    <Ionicons
-                                                        name={isPlaying && sound ? "pause" : "play"}
-                                                        size={20}
-                                                        color={isMe ? colors.white : colors.primary}
-                                                    />
+                                                    {isLoadingAudio && activeAudioId === (msg._id || msg.id) ? (
+                                                        <ActivityIndicator size={18} color={isMe ? "#fff" : "#2196F3"} />
+                                                    ) : (
+                                                        <Ionicons
+                                                            name={
+                                                                activeAudioId === (msg._id || msg.id) && isPlaying
+                                                                    ? "pause"
+                                                                    : "play"
+                                                            }
+                                                            size={20}
+                                                            color={isMe ? "#fff" : "#2196F3"}
+                                                        />
+                                                    )}
                                                 </TouchableOpacity>
+
                                                 <View style={styles.audioWaveform}>
                                                     <View style={[styles.audioBar, { height: 8 }]} />
                                                     <View style={[styles.audioBar, { height: 12 }]} />
@@ -1478,50 +1626,87 @@ export default function ChatMessageScreen() {
                                                     <View style={[styles.audioBar, { height: 10 }]} />
                                                     <View style={[styles.audioBar, { height: 4 }]} />
                                                 </View>
-                                                <Text style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}>
+
+                                                <Text
+                                                    style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}
+                                                >
                                                     Audio Track
                                                 </Text>
                                             </View>
-                                         ) : (msg.messageType === 'document' || (msg.text && msg.text.match(/\.(pdf|doc|docx|txt|xls|xlsx)$/i))) ? (
-                                             <View style={styles.documentMessageContainer}>
-                                                 <View style={styles.documentIconContainer}>
-                                                     <Ionicons name="document-text" size={32} color={isMe ? colors.white : colors.textSecondary} />
-                                                 </View>
-                                                 <View style={styles.documentInfoContainer}>
-                                                     <Text style={[styles.documentFileName, isMe ? styles.myText : styles.theirText]} numberOfLines={1}>
-                                                         {msg.text.split('/').pop() || 'Document'}
-                                                     </Text>
-                                                     <Text style={[styles.documentFileSize, isMe ? styles.myTime : styles.theirTime]}>
-                                                         Document File
-                                                     </Text>
-                                                 </View>
-                                                 <View style={styles.documentActionButtons}>
-                                                     <TouchableOpacity
-                                                         style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
-                                                         onPress={() => {
-                                                             const fileName = msg.text.split('/').pop() || 'document.pdf';
-                                                             handleDocumentAction(msg.text, fileName);
-                                                         }}
-                                                         disabled={isDownloadingPDF}
-                                                     >
-                                                         <Ionicons name="eye" size={18} color={isMe ? colors.white : colors.textSecondary} />
-                                                     </TouchableOpacity>
-                                                     <TouchableOpacity
-                                                         style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
-                                                         onPress={() => {
-                                                             const fileName = msg.text.split('/').pop() || 'document.pdf';
-                                                             downloadPDF(msg.text, fileName);
-                                                         }}
-                                                         disabled={isDownloadingPDF}
-                                                     >
-                                                         {isDownloadingPDF ? (
-                                                             <ActivityIndicator size="small" color={isMe ? colors.white : colors.textSecondary} />
-                                                         ) : (
-                                                             <Ionicons name="download" size={18} color={isMe ? colors.white : colors.textSecondary} />
-                                                         )}
-                                                     </TouchableOpacity>
-                                                 </View>
-                                             </View>
+
+
+
+                                            // <View style={styles.audioMessageContainer}>
+                                            //     <TouchableOpacity
+                                            //         style={styles.audioPlayButton}
+                                            //         onPress={() => {
+                                            //             // Use content field (S3 URL) for playback, fallback to mediaUrl or text
+                                            //             const audioUrl = msg.content || msg.mediaUrl || msg.text;
+                                            //             if (audioUrl) {
+                                            //                 playVoiceMessage(audioUrl);
+                                            //             }
+                                            //         }}
+                                            //     >
+                                            //         <Ionicons
+                                            //             name={isPlaying && sound ? "pause" : "play"}
+                                            //             size={20}
+                                            //             color={isMe ? "#fff" : "#2196F3"}
+                                            //         />
+                                            //     </TouchableOpacity>
+                                            //     <View style={styles.audioWaveform}>
+                                            //         <View style={[styles.audioBar, { height: 8 }]} />
+                                            //         <View style={[styles.audioBar, { height: 12 }]} />
+                                            //         <View style={[styles.audioBar, { height: 6 }]} />
+                                            //         <View style={[styles.audioBar, { height: 10 }]} />
+                                            //         <View style={[styles.audioBar, { height: 4 }]} />
+                                            //     </View>
+                                            //     <Text style={[styles.audioDuration, isMe ? styles.myText : styles.theirText]}>
+                                            //         Audio Track
+                                            //     </Text>
+                                            // </View>
+
+
+
+                                        ) : (msg.messageType === 'document' || (msg.text && msg.text.match(/\.(pdf|doc|docx|txt|xls|xlsx)$/i))) ? (
+                                            <View style={styles.documentMessageContainer}>
+                                                <View style={styles.documentIconContainer}>
+                                                    <Ionicons name="document-text" size={32} color={isMe ? "#fff" : "#607D8B"} />
+                                                </View>
+                                                <View style={styles.documentInfoContainer}>
+                                                    <Text style={[styles.documentFileName, isMe ? styles.myText : styles.theirText]} numberOfLines={1}>
+                                                        {msg.text.split('/').pop() || 'Document'}
+                                                    </Text>
+                                                    <Text style={[styles.documentFileSize, isMe ? styles.myTime : styles.theirTime]}>
+                                                        Document File
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.documentActionButtons}>
+                                                    <TouchableOpacity
+                                                        style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
+                                                        onPress={() => {
+                                                            const fileName = msg.text.split('/').pop() || 'document.pdf';
+                                                            handleDocumentAction(msg.text, fileName);
+                                                        }}
+                                                        disabled={isDownloadingPDF}
+                                                    >
+                                                        <Ionicons name="eye" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity
+                                                        style={[styles.documentActionButton, isDownloadingPDF && { opacity: 0.5 }]}
+                                                        onPress={() => {
+                                                            const fileName = msg.text.split('/').pop() || 'document.pdf';
+                                                            downloadPDF(msg.text, fileName);
+                                                        }}
+                                                        disabled={isDownloadingPDF}
+                                                    >
+                                                        {isDownloadingPDF ? (
+                                                            <ActivityIndicator size="small" color={isMe ? "#fff" : "#607D8B"} />
+                                                        ) : (
+                                                            <Ionicons name="download" size={18} color={isMe ? "#fff" : "#607D8B"} />
+                                                        )}
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
                                         ) : (
                                             <View style={styles.messageContentContainer}>
                                                 {msg.text.startsWith('Forwarded: ') && (
@@ -1760,7 +1945,7 @@ export default function ChatMessageScreen() {
                                             <Ionicons name="musical-notes" size={64} color="#fff" />
                                             <Text style={styles.audioPreviewText}>{selectedMedia.name}</Text>
                                             <Text style={styles.audioPreviewSubtext}>
-                                                {(selectedMedia.size / 1024 / 1024).toFixed(2)} MB
+                                                {(selectedMedia.size / 1024 / 1024)} MB
                                             </Text>
                                         </View>
                                     ) : (
@@ -1768,7 +1953,7 @@ export default function ChatMessageScreen() {
                                             <Ionicons name="document-text" size={64} color="#fff" />
                                             <Text style={styles.documentPreviewText}>{selectedMedia.name}</Text>
                                             <Text style={styles.documentPreviewSubtext}>
-                                                {(selectedMedia.size / 1024 / 1024).toFixed(2)} MB
+                                                {(selectedMedia.size / 1024 / 1024)} MB
                                             </Text>
                                         </View>
                                     )}
@@ -1984,20 +2169,15 @@ export default function ChatMessageScreen() {
     );
 }
 
-const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.background,
+        backgroundColor: theme.background,
     },
     loadingWrapper: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center'
-    },
-    loadingText: {
-        marginTop: 10,
-        fontSize: 16,
-        color: colors.textSecondary,
     },
     keyboardAvoidingContainer: {
         flex: 1,
@@ -2005,9 +2185,9 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     chatContainer: {
         flex: 1,
         marginTop: 8,
-        // backgroundColor: colors.cardBackground,
+        // backgroundColor: theme.cardBackground,
         // borderWidth: 1,
-        borderColor: colors.inputBorder,
+        borderColor: theme.inputBorder,
         borderRadius: 12,
         marginHorizontal: 10,
         marginBottom: 2,
@@ -2021,21 +2201,21 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         paddingHorizontal: 0,
         marginHorizontal: 10,
         marginTop: 20, // Top margin for status bar
-        backgroundColor: colors.background,
+        backgroundColor: theme.background,
         borderRadius: 45,
         elevation: 4,
-        shadowColor: colors.shadowColor,
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.15,
         shadowRadius: 6,
         borderWidth: 0,
-        borderColor: colors.inputBorder,
+        borderColor: theme.inputBorder,
         zIndex: 1000, // Ensure header stays on top
     },
     backButton: {
         padding: 6,
         borderRadius: 16,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.2)',
         marginLeft: 12,
     },
     headerCenter: {
@@ -2052,7 +2232,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     headerIconButton: {
         padding: 6,
         borderRadius: 12,
-        backgroundColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.2)',
     },
     userInfo: {
         flex: 1,
@@ -2062,11 +2242,11 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     friendName: {
         fontSize: 14,
         fontWeight: '600',
-        color: colors.textPrimary
+        color: theme.primaryText
     },
     statusText: {
         fontSize: 11,
-        color: colors.textSecondary,
+        color: theme.secondaryText,
         marginTop: 2
     },
 
@@ -2106,20 +2286,20 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     typingAvatarText: {
         fontSize: 12,
         fontWeight: '600',
-        color: colors.secondaryText,
+        color: theme.secondaryText,
     },
     typingIconContainer: {
         position: 'absolute',
         bottom: -2,
         right: -2,
-        backgroundColor: colors.surface,
+        backgroundColor: '#fff',
         borderRadius: 8,
         width: 16,
         height: 16,
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: colors.primary,
+        borderColor: '#009BFF',
     },
     msgAvatar: { width: 28, height: 28, borderRadius: 14, marginRight: 8 },
 
@@ -2128,29 +2308,27 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         borderRadius: 20,
         paddingHorizontal: 14,
         paddingVertical: 10,
-        shadowColor: colors.shadowColor,
+        shadowColor: theme.shadowColor,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.05,
         shadowRadius: 2,
         elevation: 2,
     },
     myBubble: {
-        backgroundColor: colors.primary,
+        backgroundColor: '#2196F3',
         borderBottomRightRadius: 4
     },
     theirBubble: {
-        backgroundColor: colors.surface,
-        borderBottomLeftRadius: 4,
-        borderWidth: 1,
-        borderColor: colors.border,
+        backgroundColor: '#fff',
+        borderBottomLeftRadius: 4
     },
-    forwardingBubble: { backgroundColor: colors.warning, opacity: 0.8 },
+    forwardingBubble: { backgroundColor: '#FF9800', opacity: 0.8 },
     messageText: { fontSize: 15 },
-    myText: { color: colors.white },
-    theirText: { color: colors.textPrimary },
+    myText: { color: '#fff' },
+    theirText: { color: '#333' },
     msgTime: { fontSize: 10, marginTop: 4, textAlign: 'right' },
     myTime: { color: 'rgba(255,255,255,0.7)' },
-    theirTime: { color: colors.textSecondary },
+    theirTime: { color: '#999' },
     messageFooter: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -2196,83 +2374,57 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: colors.textSecondary,
+        backgroundColor: '#999',
         marginHorizontal: 2,
     },
 
     inputBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: isDark ? colors.surface : colors.white,
+        backgroundColor: theme.cardBackground,
         marginHorizontal: 10,
         marginBottom: 10,
         borderRadius: 25,
-        paddingHorizontal: 15,
-        paddingVertical: 8,
-        shadowColor: isDark ? colors.shadowColor : '#000',
-        shadowOpacity: isDark ? 0.1 : 0.15,
-        shadowRadius: isDark ? 4 : 8,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: isDark ? 6 : 10,
-        borderWidth: isDark ? 1 : 1,
-        borderColor: isDark ? colors.border : colors.borderLight,
-    },
-    iconButton: { 
-        paddingHorizontal: 8,
+        paddingHorizontal: 10,
         paddingVertical: 6,
-        borderRadius: 20,
-        backgroundColor: 'transparent',
+        shadowColor: theme.shadowColor,
+        shadowOpacity: 0.05,
+        shadowRadius: 3,
+        elevation: 8,
+        borderWidth: 1,
+        borderColor: theme.inputBorder,
     },
+    iconButton: { paddingHorizontal: 6 },
     input: {
         flex: 1,
-        fontSize: 16,
+        fontSize: 15,
         maxHeight: 100,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        color: colors.textPrimary,
-        backgroundColor: 'transparent',
-        borderRadius: 20,
+        paddingHorizontal: 10,
+        color: theme.inputText,
     },
     sendButton: {
-        backgroundColor: colors.primary,
-        borderRadius: 22,
-        width: 44,
-        height: 44,
+        backgroundColor: '#007AFF',
+        borderRadius: 20,
+        width: 40,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: colors.primary,
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 4,
     },
     recordingButton: {
-        backgroundColor: colors.error,
-        borderRadius: 22,
-        width: 44,
-        height: 44,
+        backgroundColor: '#FF5722',
+        borderRadius: 20,
+        width: 40,
+        height: 40,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: colors.error,
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 4,
     },
     recordingContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.error,
-        borderRadius: 25,
-        paddingHorizontal: 15,
-        paddingVertical: 10,
-        marginHorizontal: 10,
-        marginBottom: 10,
-        shadowColor: colors.error,
-        shadowOpacity: 0.2,
-        shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
-        elevation: 4,
+        backgroundColor: '#FF5722',
+        borderRadius: 20,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
     recordingIndicator: {
         marginRight: 8,
@@ -2284,12 +2436,11 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         backgroundColor: '#fff',
     },
     recordingText: {
-        color: colors.white,
-        fontSize: 15,
+        color: '#fff',
+        fontSize: 14,
         fontWeight: '600',
-        marginRight: 10,
-        minWidth: 50,
-        textAlign: 'center',
+        marginRight: 8,
+        minWidth: 40,
     },
 
     // Forwarded message styles
@@ -2481,7 +2632,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         justifyContent: 'flex-end',
     },
     forwardModal: {
-        backgroundColor: colors.cardBackground,
+        backgroundColor: theme.cardBackground,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
         maxHeight: '80%',
@@ -2494,15 +2645,15 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         paddingHorizontal: 20,
         paddingVertical: 16,
         borderBottomWidth: 1,
-        borderBottomColor: colors.inputBorder,
+        borderBottomColor: theme.inputBorder,
     },
     forwardModalTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: colors.secondaryText,
+        color: theme.secondaryText,
     },
     selectedMessagePreview: {
-        backgroundColor: colors.containerBackground,
+        backgroundColor: theme.containerBackground,
         marginHorizontal: 20,
         marginVertical: 12,
         paddingHorizontal: 16,
@@ -2519,7 +2670,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     },
     messagePreviewLabel: {
         fontSize: 12,
-        color: colors.secondaryText,
+        color: theme.secondaryText,
         fontWeight: '600',
     },
     forwardedBadge: {
@@ -2533,12 +2684,12 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     },
     forwardedBadgeText: {
         fontSize: 10,
-        color: colors.primaryText,
+        color: theme.primaryText,
         fontWeight: '600',
     },
     selectedMessageText: {
         fontSize: 14,
-        color: colors.secondaryText,
+        color: theme.secondaryText,
         fontStyle: 'italic',
     },
     forwardLoadingContainer: {
@@ -2561,7 +2712,7 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
         paddingHorizontal: 20,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: colors.inputBorder,
+        borderBottomColor: theme.inputBorder,
     },
     forwardContactAvatar: {
         marginRight: 12,
@@ -2584,12 +2735,12 @@ const createStyles = (isDark: boolean, colors: any, shadows: any) => StyleSheet.
     forwardContactName: {
         fontSize: 16,
         fontWeight: '600',
-        color: colors.secondaryText,
+        color: theme.secondaryText,
         marginBottom: 2,
     },
     forwardContactType: {
         fontSize: 12,
-        color: colors.tertiaryText,
+        color: theme.tertiaryText,
     },
     forwardEmptyContainer: {
         flex: 1,
